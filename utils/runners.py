@@ -38,9 +38,8 @@ def run_session(settings) -> Tuple[dict, dict]:
         if "parameters" in agent:
             if "storage_dir" in agent["parameters"]:
                 storage_dir = Path(agent["parameters"]["storage_dir"])
-                if storage_dir.exists():
-                    shutil.rmtree(storage_dir)
-                storage_dir.mkdir(parents=True)
+                if not storage_dir.exists():
+                    storage_dir.mkdir(parents=True)
 
     # file path to uri
     profiles_uri = [f"file:{x}" for x in profiles]
@@ -100,7 +99,7 @@ def run_session(settings) -> Tuple[dict, dict]:
 
     # add utilities to the results and create a summary
     results_trace, results_summary = process_results(results_class, results_dict)
-    print("results_summary={0}".format(results_summary))
+
     return results_trace, results_summary
 
 
