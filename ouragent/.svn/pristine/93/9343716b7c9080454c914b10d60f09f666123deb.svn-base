@@ -1,0 +1,93 @@
+{
+	"LinearAdditiveUtilitySpace": {
+		"issueUtilities": {
+			"place": {
+				"DiscreteValueSetUtilities": {
+					"valueUtilities": {
+						"Tokyo": 1.0,
+						"Osaka": 0.2,
+						"Negoya": 0.2,
+						"Hokkaido": 0.2
+					}
+				}
+			},
+			"budget": {
+				"NumberValueSetUtilities": {
+					"lowValue": 900,
+					"lowUtility": 1.0,
+					"highValue": 1800,
+					"highUtility": 0.15
+				}
+			},
+			"days": {
+				"DiscreteValueSetUtilities": {
+					"valueUtilities": {
+						"3": 1.0,
+						"4": 0.2,
+						"5": 0.2,
+						"6": 0.1
+					}
+				}
+			},
+			"purpose": {
+				"DiscreteValueSetUtilities": {
+					"valueUtilities": {
+						"Sightseeing": 0.6,
+						"Activity": 1.0,
+						"Shopping": 0.3
+					}
+				}
+			}
+		},
+		"issueWeights": {
+			"place": 0.57,
+			"budget": 0.09,
+			"days": 0.17,
+			"purpose": 0.17
+		},
+		"domain": {
+			"name": "japantrip",
+			"issuesValues": {
+				"place": {
+					"values": [
+						"Tokyo",
+						"Osaka",
+						"Negoya",
+						"Hokkaido"
+					]
+				},
+				"budget": {
+					"range": {
+						"low": 900,
+						"high": 1800,
+						"step": 300
+					}
+				},
+				"days": {
+					"values": [
+						"3",
+						"4",
+						"5",
+						"6"
+					]
+				},
+				"purpose": {
+					"values": [
+						"Sightseeing",
+						"Activity",
+						"Shopping"
+					]
+				}
+			}
+		},
+		"name": "japantrip1",
+		"reservationBid": {
+			"issuevalues": {
+				"place": "Osaka",
+				"budget": 1800,
+				"days": "6",
+				"purpose": "Shopping"
+			}
+		}
+	}
+}
