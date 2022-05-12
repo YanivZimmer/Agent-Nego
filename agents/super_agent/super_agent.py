@@ -23,9 +23,9 @@ from geniusweb.issuevalue import NumberValue
 from geniusweb.profile.utilityspace.LinearAdditive import LinearAdditive
 
 
-class StupidAgent(DefaultParty):
+class SuperAgent(DefaultParty):
     """
-    A Stupid party that places empty bids because it can't download the profile,
+    A Super party that places empty bids because it can't download the profile,
     and accepts the first incoming offer.
     """
 
@@ -48,7 +48,7 @@ class StupidAgent(DefaultParty):
             if isinstance(action, Offer):
                 self._lastReceivedBid = cast(Offer, action).getBid()
         elif isinstance(info, YourTurn):
-            # This is a stupid party
+            # This is a super party
             if self._lastReceivedBid != None:
                 self.getReporter().log(logging.INFO, "sending accept:")
                 accept = Accept(self._me, self._lastReceivedBid)
