@@ -21,7 +21,8 @@ from geniusweb.issuevalue.Value import Value
 from geniusweb.issuevalue import DiscreteValue
 from geniusweb.issuevalue import NumberValue
 from geniusweb.profile.utilityspace.LinearAdditive import LinearAdditive
-
+from geniusweb.inform.Agreements import Agreements
+from geniusweb.profile.utilityspace.UtilitySpace import UtilitySpace
 
 class SuperAgent(DefaultParty):
     """
@@ -35,6 +36,13 @@ class SuperAgent(DefaultParty):
         self._utilspace: LinearAdditive = None  # type:ignore
         self._profile = None
         self._lastReceivedBid: Bid = None
+        self.utilThreshold = 0.95
+        self.utilitySpace = None
+        # estimate opponent time-variant threshold function
+        self.tSplit = 40
+        self.opCounter = [0] * self.tSplit
+        self.opSum = [0.0] * self.tSplit
+        self.opThreshold = [0.0] * self.tSplit
 
     # Override
     def notifyChange(self, info: Inform):
@@ -103,3 +111,28 @@ class SuperAgent(DefaultParty):
             utilVal = float(self._utilspace.getUtility(self._lastReceivedBid))
             # TODO: implement NegotiationData class
             # self.negotiationData.addBidUtil(utilVal)
+
+    def processAgreements(Agreements agreements) {
+        # Check if we reached an agreement (walking away or passing the deadline
+        # results in no agreement)
+        if not agreements.getMap().isEmpty():
+            # Get the bid that is agreed upon and add it's value to our negotiation data
+            Bid agreement = agreements.getMap().values().iterator().next()
+            # TODO: implement NegotiationData class
+            # self.negotiationData.addAgreementUtil(self.utilitySpace.getUtility(agreement).doubleValue())
+            # self.negotiationData.setOpponentUtil(self.calcOpValue(agreement))
+            
+            self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: " + self.utilThreshold)
+            
+            self.getReporter().log("MY OWN UTIL: " + float(self.utilitySpace.getUtility(agreement)))
+            self.getReporter().log("EXP OPPONENT UTIL: " + self.calcOpValue(agreement))
+        else:
+            self.getReporter().log("!!!!!!!!!!!!!! NO AGREEMENT !!!!!!!!!!!!!!! /// MY THRESHOLD: " + self.utilThreshold)
+        # TODO: add declaration of progress 
+        # self.getReporter().log("TIME OF AGREEMENT: " + progress.get(int(round(datetime.datetime.now().timestamp()))))
+        # update the opponent offers map, regardless of achieving agreement or not
+        try:
+            # TODO: implement NegotiationData class
+            # self.negotiationData.updateOpponentOffers(self.opSum, self.opCounter)
+        except Exception as e:
+            pass
