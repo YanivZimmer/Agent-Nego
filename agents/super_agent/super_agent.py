@@ -17,9 +17,11 @@ from geniusweb.issuevalue.Bid import Bid
 from geniusweb.party.Capabilities import Capabilities
 from geniusweb.party.DefaultParty import DefaultParty
 from geniusweb.utils import val
+from geniusweb.issuevalue.Value import Value
 from geniusweb.issuevalue import DiscreteValue
 from geniusweb.issuevalue import NumberValue
 from geniusweb.profile.utilityspace.LinearAdditive import LinearAdditive
+
 
 class StupidAgent(DefaultParty):
     """
@@ -82,18 +84,18 @@ class StupidAgent(DefaultParty):
             self._profile.close()
             self._profile = None
 
-    def valueToStr(v, p) -> str:
+    def valueToStr(self, v: Value, p) -> str:
         v_str = ""
         if p.type == 0:
             v_str = str(DiscreteValue(v).getValue())
-        else if p.type == 1:
+        elif p.type == 1:
             v_str = str(NumberValue(v).getValue())
-        
+
         if v_str == "":
             self.getReporter().log(logging.WARNING, "Warning: Value wasn't found")
         return v_str
 
-    def processAction(action):
+    def processAction(self, action: Action):
         if isinstance(action, Offer):
             self._lastReceivedBid = Offer(action).getBid()
             # TODO: implement updateFreqMap
