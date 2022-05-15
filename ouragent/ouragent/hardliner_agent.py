@@ -21,7 +21,8 @@ class HardlinerAgent(TimeDependentAgent):
         self.t_phase = 0
         self.t_split = 0
         self.progress = progress1
-        self.last_recieved_bid = geniusweb.issuevalue.Bid.Bid()
+        self.last_received_bid = geniusweb.issuevalue.Bid.Bid()
+        self.best_offer_bid = geniusweb.issuevalue.Bid.Bid()
     # Override
     def getDescription(self) -> str:
         return (
@@ -39,11 +40,32 @@ class HardlinerAgent(TimeDependentAgent):
 
     def calc_op_value(self,bid):
         pass
-
+    def is_good(self,bid):
+        pass
+    def accept_bid(self):
+        pass
     def _my_turn(self):
         #save average of the last avgSplit offers (only when frequency table is stabilized)
-		if (self.is_near_negotiation_end()):
-		    index = int ((self.t_split - 1)/(1-self.t_phase) * (self.progress.get(int(time()*1000)) - self.t_phase))
-		    self.opSum[index] += self.calc_op_value(self.last_recieved_bid)
-		    self.opCounter[index] +=1
+        if self.is_near_negotiation_end():
+            index = int ((self.t_split - 1)/(1-self.t_phase) * (self.progress.get(int(time()*1000)) - self.t_phase))
+            self.opSum[index] += self.calc_op_value(self.last_received_bid)
+            self.opCounter[index] +=1
+        if self.is_good(self.last_received_bid):
+            #if the last bid is good- accept it.
+            action = self.accept_bid()
+        else:
+            self._find_bid()
 
+    def cmp_utility(self,first_bid,second_bid):
+        #return 1 if first_bid with higher utility, 0 else
+        return 1
+    def on_negotiation_near_end(self):
+        #TODO implament
+        pass
+    def _find_bid(self):
+        if self.best_offer_bid == None:
+            self.best_offer_bid = self.last_received_bid
+        elif self.cmp_utility(self.last_received_bid,self.best_offer_bid):
+            self.best_offer_bid = self.last_received_bid
+        if self.is_near_negotiation_end():
+            self.on_negotiation_near_end()
