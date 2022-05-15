@@ -1,3 +1,4 @@
+import random
 
 from agents.time_dependent_agent.time_dependent_agent import TimeDependentAgent
 from tudelft_utilities_logging.Reporter import Reporter
@@ -23,6 +24,8 @@ class HardlinerAgent(TimeDependentAgent):
         self.progress = progress1
         self.last_received_bid = geniusweb.issuevalue.Bid.Bid()
         self.best_offer_bid = geniusweb.issuevalue.Bid.Bid()
+        self.optimal_bid = geniusweb.issuevalue.Bid.Bid()
+        self.all_bids_list=[]
     # Override
     def getDescription(self) -> str:
         return (
@@ -61,6 +64,15 @@ class HardlinerAgent(TimeDependentAgent):
         return 1
     def on_negotiation_near_end(self):
         #TODO implament
+        bid= geniusweb.issuevalue.Bid.Bid()
+        for attempt in range(1000):
+            if self.is_good(bid):
+                return
+            idx = random.randint(0,len(self.all_bids_list))
+            bid = self.all_bids_list[idx]
+        if not self.is_good(bid):
+            bid=self.optimal_bid
+    def on_negotiation_continues(self):
         pass
     def _find_bid(self):
         if self.best_offer_bid == None:
@@ -69,3 +81,5 @@ class HardlinerAgent(TimeDependentAgent):
             self.best_offer_bid = self.last_received_bid
         if self.is_near_negotiation_end():
             self.on_negotiation_near_end()
+        else:
+            self.on_negotiation_continues()
