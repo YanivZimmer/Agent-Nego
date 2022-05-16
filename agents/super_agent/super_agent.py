@@ -175,47 +175,35 @@ class SuperAgent(DefaultParty):
     def processAction(self, action: Action):
         if isinstance(action, Offer):
             self._lastReceivedBid = Offer(action).getBid()
-            # TODO: implement updateFreqMap
-            # self.updateFreqMap(self._lastReceivedBid)
+            self.update_freq_map(self._lastReceivedBid)
             utilVal = float(self._utilspace.getUtility(self._lastReceivedBid))
             # TODO: implement NegotiationData class
             # self.negotiationData.addBidUtil(utilVal)
 
-    def processAgreements(Agreements agreements) {
+    def processAgreements(self, agreements: Agreements) :
         # Check if we reached an agreement (walking away or passing the deadline
         # results in no agreement)
-        if not agreements.getMap().isEmpty():
+        if len(agreements.getMap().items()) > 0:
             # Get the bid that is agreed upon and add it's value to our negotiation data
-            Bid agreement = agreements.getMap().values().iterator().next()
+            Bid agreement = agreements.getMap().values().__iter__().__next__()
             # TODO: implement NegotiationData class
             # self.negotiationData.addAgreementUtil(self.utilitySpace.getUtility(agreement).doubleValue())
-            # self.negotiationData.setOpponentUtil(self.calcOpValue(agreement))
+            # self.negotiationData.setOpponentUtil(self.calc_op_value(agreement))
             
             self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: " + self.utilThreshold)
             
-            self.getReporter().log("MY OWN UTIL: " + float(self.utilitySpace.getUtility(agreement)))
-            self.getReporter().log("EXP OPPONENT UTIL: " + self.calcOpValue(agreement))
+            self.getReporter().log(logging.INFO, "MY OWN UTIL: " + float(self.utilitySpace.getUtility(agreement)))
+            self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL: " + self.calcOpValue(agreement))
         else:
-            self.getReporter().log("!!!!!!!!!!!!!! NO AGREEMENT !!!!!!!!!!!!!!! /// MY THRESHOLD: " + self.utilThreshold)
+            self.getReporter().log(logging.INFO, "!!!!!!!!!!!!!! NO AGREEMENT !!!!!!!!!!!!!!! /// MY THRESHOLD: " + self.utilThreshold)
         # TODO: add declaration of progress 
-        # self.getReporter().log("TIME OF AGREEMENT: " + progress.get(int(round(datetime.datetime.now().timestamp()))))
+        # self.getReporter().log(logging.INFO, "TIME OF AGREEMENT: " + progress.get(int(round(datetime.datetime.now().timestamp()))))
         # update the opponent offers map, regardless of achieving agreement or not
         try:
             # TODO: implement NegotiationData class
             # self.negotiationData.updateOpponentOffers(self.opSum, self.opCounter)
         except Exception as e:
             pass
-            self._lastReceivedBid = cast(Offer, action).getBid()
-            # TODO: implement updateFreqMap
-
-            self.update_freq_map(self._lastReceivedBid)
-
-            # self.updateFreqMap(self._lastReceivedBid)
-
-            # utilVal = float(self._utilspace.getUtility(self._lastReceivedBid))
-
-            # TODO: implement NegotiationData class
-            # self.negotiationData.addBidUtil(utilVal)
 
     def update_freq_map(self, bid: Bid):
         if bid is not None:
