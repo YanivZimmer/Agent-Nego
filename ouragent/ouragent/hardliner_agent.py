@@ -62,8 +62,11 @@ class HardlinerAgent(TimeDependentAgent):
     def cmp_utility(self,first_bid,second_bid):
         #return 1 if first_bid with higher utility, 0 else
         return 1
+
+    def is_op_good(self, bid):
+        pass
+
     def on_negotiation_near_end(self):
-        #TODO implament
         bid= geniusweb.issuevalue.Bid.Bid()
         for attempt in range(1000):
             if self.is_good(bid):
@@ -72,14 +75,29 @@ class HardlinerAgent(TimeDependentAgent):
             bid = self.all_bids_list[idx]
         if not self.is_good(bid):
             bid=self.optimal_bid
+        return bid
     def on_negotiation_continues(self):
-        pass
+        bid = geniusweb.issuevalue.Bid.Bid()
+        for attempt in range(1000):
+            if bid == self.optimal_bid or self.is_good(bid) or self.is_op_good(bid):
+                break
+            idx = random.randint(0, len(self.all_bids_list))
+            bid = self.all_bids_list[idx]
+            if self.progress.get(int(time() * 1000))>0.99 and self.is_good(self.best_offer_bid):
+                bid = self.best_offer_bid
+            if not self.is_good(bid):
+               bid= self.optimal_bid
+        return bid
     def _find_bid(self):
+        bid=None
         if self.best_offer_bid == None:
             self.best_offer_bid = self.last_received_bid
         elif self.cmp_utility(self.last_received_bid,self.best_offer_bid):
             self.best_offer_bid = self.last_received_bid
+            #bid= self.best_offer_bid
         if self.is_near_negotiation_end():
-            self.on_negotiation_near_end()
+            bid = self.on_negotiation_near_end()
         else:
-            self.on_negotiation_continues()
+            bid = self.on_negotiation_continues()
+        # action=Action(my_user,bid)
+        #send action
