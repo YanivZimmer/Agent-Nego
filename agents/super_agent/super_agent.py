@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import random
 import sys
 from typing import Dict, Any
 from time import time
@@ -43,6 +44,8 @@ class SuperAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
+        self.all_bids_list = []
+        self.optimal_default_bid:Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._utilspace: LinearAdditive = None  # type:ignore
         self._profile = None
@@ -232,3 +235,16 @@ class SuperAgent(DefaultParty):
 
     def is_near_negotiation_end(self):
         return self._progress.get(int(time() * 1000)) > self.t_phase
+
+    def is_good(self, bid: Bid):
+        pass
+    def on_negotiation_near_end(self):
+        bid = Bid()
+        for attempt in range(1000):
+            if self.is_good(bid):
+                return
+            idx = random.randint(0,len(self.all_bids_list))
+            bid = self.all_bids_list[idx]
+        if not self.is_good(bid):
+            bid=self.optimal_default_bid
+        return bid
