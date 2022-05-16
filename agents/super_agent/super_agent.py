@@ -34,6 +34,7 @@ from geniusweb.profileconnection.ProfileConnectionFactory import (
 
 from agents.super_agent.utils.utils import get_ms_current_time
 from agents.super_agent.utils.pair import Pair
+from agents.super_agent.utils.negotiation_data import NegotiationData
 
 
 class SuperAgent(DefaultParty):
@@ -69,6 +70,8 @@ class SuperAgent(DefaultParty):
         self._profile = None
         self._progress = None
 
+        self._negotiationData = None
+
     # Override
     def notifyChange(self, info: Inform):
         # self.getReporter().log(logging.INFO,"received info:"+str(info))
@@ -88,6 +91,7 @@ class SuperAgent(DefaultParty):
                 # TODO: fill the learning stuff here
                 pass
             else:
+                self._negotiationData = NegotiationData()
                 # We are in the negotiation step.
                 # TODO: fill the other stuff here
                 # Obtain all of the issues in the current negotiation domain
@@ -177,18 +181,16 @@ class SuperAgent(DefaultParty):
             self._lastReceivedBid = Offer(action).getBid()
             self.update_freq_map(self._lastReceivedBid)
             utilVal = float(self._utilspace.getUtility(self._lastReceivedBid))
-            # TODO: implement NegotiationData class
-            # self.negotiationData.addBidUtil(utilVal)
+            self._negotiationData.addBidUtil(utilVal)
 
     def processAgreements(self, agreements: Agreements) :
         # Check if we reached an agreement (walking away or passing the deadline
         # results in no agreement)
         if len(agreements.getMap().items()) > 0:
             # Get the bid that is agreed upon and add it's value to our negotiation data
-            Bid agreement = agreements.getMap().values().__iter__().__next__()
-            # TODO: implement NegotiationData class
-            # self.negotiationData.addAgreementUtil(self.utilitySpace.getUtility(agreement).doubleValue())
-            # self.negotiationData.setOpponentUtil(self.calc_op_value(agreement))
+            agreement = agreements.getMap().values().__iter__().__next__()
+            self.negotiationData.addAgreementUtil(self.utilitySpace.getUtility(agreement).doubleValue())
+            self.negotiationData.setOpponentUtil(self.calc_op_value(agreement))
             
             self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: " + self.utilThreshold)
             
@@ -196,12 +198,11 @@ class SuperAgent(DefaultParty):
             self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL: " + self.calcOpValue(agreement))
         else:
             self.getReporter().log(logging.INFO, "!!!!!!!!!!!!!! NO AGREEMENT !!!!!!!!!!!!!!! /// MY THRESHOLD: " + self.utilThreshold)
-        # TODO: add declaration of progress 
-        # self.getReporter().log(logging.INFO, "TIME OF AGREEMENT: " + progress.get(int(round(datetime.datetime.now().timestamp()))))
+
+        self.getReporter().log(logging.INFO, "TIME OF AGREEMENT: " + self._progress.get(get_ms_current_time()))
         # update the opponent offers map, regardless of achieving agreement or not
         try:
-            # TODO: implement NegotiationData class
-            # self.negotiationData.updateOpponentOffers(self.opSum, self.opCounter)
+            self._negotiationData.updateOpponentOffers(self.opSum, self.opCounter)
         except Exception as e:
             pass
 
