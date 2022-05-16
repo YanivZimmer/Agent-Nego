@@ -43,8 +43,17 @@ class HardlinerAgent(TimeDependentAgent):
 
     def calc_op_value(self,bid):
         pass
+    def calc_utility(self,bid):
+        #get utility from utility space
+        #TODO implement
+        return 1
     def is_good(self,bid):
-        pass
+        if bid==None:
+            return False
+        max_value = 0.95
+        if self.optimal_bid != None:
+            max_value = 0.95 * self.calc_utility(self.optimal_bid)
+
     def accept_bid(self):
         pass
     def _my_turn(self):
