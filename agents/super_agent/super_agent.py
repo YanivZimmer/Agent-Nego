@@ -54,7 +54,7 @@ class SuperAgent(DefaultParty):
         self.defualtAlpha = 10.7
         self.alpha = self.defualtAlpha
         self.tSplit = 40
-        self.tPhase = 0.2
+        self.t_phase = 0.2
         self.opCounter = [0] * self.tSplit
         self.opSum = [0.0] * self.tSplit
         self.opThreshold = [0.0] * self.tSplit
@@ -225,7 +225,10 @@ class SuperAgent(DefaultParty):
         if bid is None:
             return False
         value = self.calc_op_value(bid=bid)
-        index = ((self.tSplit - 1) / (1 - self.tPhase) * (self._progress.get(get_ms_current_time()) - self.tPhase))
+        index = ((self.tSplit - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
         op_threshold = max(1 - 2 * self.opThreshold[index], 0.2) if self.opThreshold is not None else 0.6
         return value > op_threshold
-        # index = (int)((tSplit - 1) / (1 - tPhase) * (progress.get(System.currentTimeMillis()) - tPhase));
+        # index = (int)((tSplit - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
+
+    def is_near_negotiation_end(self):
+        return self._progress.get(int(time() * 1000)) > self.t_phase
