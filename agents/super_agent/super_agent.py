@@ -238,8 +238,18 @@ class SuperAgent(DefaultParty):
     def is_near_negotiation_end(self):
         return self._progress.get(int(time() * 1000)) > self.t_phase
 
-    def is_good(self, bid: Bid):
-        pass
+    def calc_utility(self, bid):
+        # get utility from utility space
+        # TODO implement
+        return 1
+
+    def is_good(self, bid):
+        if bid == None:
+            return False
+        max_value = 0.95
+        if self.optimal_default_bid != None:
+            max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
+
     def on_negotiation_near_end(self):
         bid = Bid()
         for attempt in range(1000):
