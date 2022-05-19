@@ -236,7 +236,7 @@ class SuperAgent(DefaultParty):
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
     def is_near_negotiation_end(self):
-        return self._progress.get(int(time() * 1000)) > self.t_phase
+        return self._progress.get(get_ms_current_time()) > self.t_phase
 
     def calc_utility(self, bid):
         # get utility from utility space
@@ -296,7 +296,7 @@ class SuperAgent(DefaultParty):
     def _my_turn(self):
         # save average of the last avgSplit offers (only when frequency table is stabilized)
         if self.is_near_negotiation_end():
-            index = int((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(int(time() * 1000)) - self.t_phase))
+            index = int((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
             self.opSum[index] += self.calc_op_value(self._last_received_bid)
             self.opCounter[index] += 1
         if self.is_good(self._last_received_bid):
