@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import random
 import sys
 from typing import Dict, Any
 from time import time
@@ -43,21 +44,25 @@ class SuperAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
+        self.t_split = None
+        self.best_offer_bid:Bid = None
+        self.all_bids_list = []
+        self.optimal_default_bid:Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._utilspace: LinearAdditive = None  # type:ignore
         self._profile = None
-        self._lastReceivedBid: Bid = None
+        self._last_received_bid: Bid = None
         self.utilThreshold = 0.95
         self.utilitySpace = None
         self._protocol = None
         # estimate opponent time-variant threshold function
         self.defualtAlpha = 10.7
         self.alpha = self.defualtAlpha
-        self.tSplit = 40
-        self.tPhase = 0.2
-        self.opCounter = [0] * self.tSplit
-        self.opSum = [0.0] * self.tSplit
-        self.opThreshold = [0.0] * self.tSplit
+        self.t_split = 40
+        self.t_phase = 0.2
+        self.opCounter = [0] * self.t_split
+        self.opSum = [0.0] * self.t_split
+        self.opThreshold = [0.0] * self.t_split
         # game details
         self._me = None
         self._opponent_name = None
@@ -117,16 +122,16 @@ class SuperAgent(DefaultParty):
                 # self.negotiation_data.setOpponentName(self._opponent_name)
                 # self.opThreshold = self.persistentState.getSmoothThresholdOverTime(self._opponentName);
                 # if self.opThreshold is not None:
-                #     for i in range(1, self.tSplit):
+                #     for i in range(1, self.t_split):
                 #         self.opThreshold[i] = self.opThreshold[i] if self.opThreshold[i] > 0 else \
                 #             self.opThreshold[i - 1]
                 # self.alpha = self.persistentState.getOpponentAlpha(self._opponent_name)
                 # self.alpha = self.alpha if self.alpha > 0.0 else self.defualtAlpha
         elif isinstance(info, YourTurn):
             # This is a super party
-            if self._lastReceivedBid is not None:
+            if self._last_received_bid is not None:
                 self.getReporter().log(logging.INFO, "sending accept:")
-                accept = Accept(self._me, self._lastReceivedBid)
+                accept = Accept(self._me, self._last_received_bid)
                 val(self.getConnection()).send(accept)
             else:
                 # We have no clue about our profile
@@ -173,14 +178,14 @@ class SuperAgent(DefaultParty):
 
     def processAction(self, action: Action):
         if isinstance(action, Offer):
-            self._lastReceivedBid = cast(Offer, action).getBid()
+            self._last_received_bid = cast(Offer, action).getBid()
             # TODO: implement updateFreqMap
 
-            self.update_freq_map(self._lastReceivedBid)
+            self.update_freq_map(self._last_received_bid)
 
-            # self.updateFreqMap(self._lastReceivedBid)
+            # self.updateFreqMap(self._last_received_bid)
 
-            # utilVal = float(self._utilspace.getUtility(self._lastReceivedBid))
+            # utilVal = float(self._utilspace.getUtility(self._last_received_bid))
 
             # TODO: implement NegotiationData class
             # self.negotiationData.addBidUtil(utilVal)
@@ -225,7 +230,79 @@ class SuperAgent(DefaultParty):
         if bid is None:
             return False
         value = self.calc_op_value(bid=bid)
-        index = ((self.tSplit - 1) / (1 - self.tPhase) * (self._progress.get(get_ms_current_time()) - self.tPhase))
+        index = ((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
         op_threshold = max(1 - 2 * self.opThreshold[index], 0.2) if self.opThreshold is not None else 0.6
         return value > op_threshold
-        # index = (int)((tSplit - 1) / (1 - tPhase) * (progress.get(System.currentTimeMillis()) - tPhase));
+        # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
+
+    def is_near_negotiation_end(self):
+        return self._progress.get(get_ms_current_time()) > self.t_phase
+
+    def calc_utility(self, bid):
+        # get utility from utility space
+        # TODO implement
+        return 1
+
+    def is_good(self, bid):
+        if bid == None:
+            return False
+        max_value = 0.95
+        if self.optimal_default_bid != None:
+            max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
+
+    def on_negotiation_near_end(self):
+        bid = Bid()
+        for attempt in range(1000):
+            if self.is_good(bid):
+                return bid
+            idx = random.randint(0,len(self.all_bids_list))
+            bid = self.all_bids_list[idx]
+        if not self.is_good(bid):
+            bid=self.optimal_default_bid
+        return bid
+
+    def on_negotiation_continues(self):
+        bid = Bid()
+        for attempt in range(1000):
+            if bid == self.optimal_default_bid or self.is_good(bid) or self.is_op_good(bid):
+                break
+            idx = random.randint(0, len(self.all_bids_list))
+            bid = self.all_bids_list[idx]
+        if self._progress.get(int(time() * 1000))>0.99 and self.is_good(self.best_offer_bid):
+            bid = self.best_offer_bid
+        if not self.is_good(bid):
+           bid = self.optimal_default_bid
+        return bid
+    def cmp_utility(self,first_bid,second_bid):
+        #return 1 if first_bid with higher utility, 0 else
+        return 1
+
+    def _find_bid(self):
+        bid:Bid = None
+        if self.best_offer_bid is None:
+            self.best_offer_bid = self._last_received_bid
+        elif self.cmp_utility(self._last_received_bid,self.best_offer_bid):
+            self.best_offer_bid = self._last_received_bid
+            #bid= self.best_offer_bid
+        if self.is_near_negotiation_end():
+            bid = self.on_negotiation_near_end()
+        else:
+            bid = self.on_negotiation_continues()
+        # action=Action(my_user,bid)
+        action: Offer = Offer(self._me, bid)
+        return action
+
+    
+    def _my_turn(self):
+        # save average of the last avgSplit offers (only when frequency table is stabilized)
+        if self.is_near_negotiation_end():
+            index = int((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
+            self.opSum[index] += self.calc_op_value(self._last_received_bid)
+            self.opCounter[index] += 1
+        if self.is_good(self._last_received_bid):
+            # if the last bid is good- accept it.
+            action = Accept(self._me, self._last_received_bid)
+        else:
+            action = self._find_bid()
+
+        val(self.getConnection()).send(action)
