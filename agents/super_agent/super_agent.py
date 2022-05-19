@@ -254,7 +254,7 @@ class SuperAgent(DefaultParty):
         bid = Bid()
         for attempt in range(1000):
             if self.is_good(bid):
-                return
+                return bid
             idx = random.randint(0,len(self.all_bids_list))
             bid = self.all_bids_list[idx]
         if not self.is_good(bid):
@@ -268,10 +268,10 @@ class SuperAgent(DefaultParty):
                 break
             idx = random.randint(0, len(self.all_bids_list))
             bid = self.all_bids_list[idx]
-            if self._progress.get(int(time() * 1000))>0.99 and self.is_good(self.best_offer_bid):
-                bid = self.best_offer_bid
-            if not self.is_good(bid):
-               bid = self.optimal_default_bid
+        if self._progress.get(int(time() * 1000))>0.99 and self.is_good(self.best_offer_bid):
+            bid = self.best_offer_bid
+        if not self.is_good(bid):
+           bid = self.optimal_default_bid
         return bid
     def cmp_utility(self,first_bid,second_bid):
         #return 1 if first_bid with higher utility, 0 else
@@ -279,7 +279,7 @@ class SuperAgent(DefaultParty):
 
     def _find_bid(self):
         bid:Bid = None
-        if self.best_offer_bid == None:
+        if self.best_offer_bid is None:
             self.best_offer_bid = self._last_received_bid
         elif self.cmp_utility(self._last_received_bid,self.best_offer_bid):
             self.best_offer_bid = self._last_received_bid
