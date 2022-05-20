@@ -74,7 +74,7 @@ class PersistentData(ABC):
         self._opponent_alpha[opponent] = self._calc_alpha(opponent)
 
     def _known_opponent(self, opponent: str):
-        return self._opponent_encounters.keys().__contains__(opponent)
+        return opponent in self._opponent_encounters
 
     def _get_smooth_threshold_over_time(self, opponent: str):
         if not self._known_opponent(opponent):
