@@ -99,14 +99,14 @@ class PersistentData(ABC):
         max_idx=0
         t=0
         for max_idx in range(self._t_split):
-            if alpha_arr[max_idx]>0.2:
+            if alpha_arr[max_idx]<0.2:
                 break
         max_val = alpha_arr[0]
         min_val = alpha_arr[max(max_idx-self._smooth_width-1, 0)]
         if max_val - min_val < 0.1:
             return self._default_alpha
         for t in range(max_idx):
-            if alpha_arr[t]>(max_val-self._opponent_decrease*(max_val-min_val)):
+            if alpha_arr[t]<(max_val-self._opponent_decrease*(max_val-min_val)):
                 break
         calibrated_polynom = [572.83, -1186.7, 899.29, -284.68, 32.911]
         alpha = calibrated_polynom[0]
