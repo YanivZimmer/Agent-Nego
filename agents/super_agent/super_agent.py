@@ -45,14 +45,16 @@ class SuperAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
+        self._persistent_path = None
+        self._data_paths = []
         self._std_util = 0.1
         self._avg_utility = 0.9
         self._util_threshold = 0.95
-        self._persistent_state:PersistentData = PersistentData()
+        self._persistent_state: PersistentData = PersistentData()
         self.t_split = None
-        self.best_offer_bid:Bid = None
+        self.best_offer_bid: Bid = None
         self.all_bids_list = []
-        self.optimal_default_bid:Bid = None
+        self.optimal_default_bid: Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._utilspace: LinearAdditive = None  # type:ignore
         self._profile = None
@@ -255,11 +257,13 @@ class SuperAgent(DefaultParty):
         if self.optimal_default_bid != None:
             max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
             avg_max_utility = self._persistent_state._get_avg_max_utility(self._opponent_name) \
-                if self._persistent_state._known_opponent(self._opponent_name)\
+                if self._persistent_state._known_opponent(self._opponent_name) \
                 else self._avg_utility
 
-            self._util_threshold = max_value - (max_value-0.4*avg_max_utility-0.6*self._avg_utility+self._std_util**2)* \
-                                   (math.exp(self.alpha*self._progress.get(get_ms_current_time())-1)/math.exp(self.alpha)-1)
+            self._util_threshold = max_value - (
+                        max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_util ** 2) * \
+                                   (math.exp(self.alpha * self._progress.get(get_ms_current_time()) - 1) / math.exp(
+                                       self.alpha) - 1)
 
             return self.utilitySpace.get_utility(bid) >= self._util_threshold
 
@@ -268,10 +272,10 @@ class SuperAgent(DefaultParty):
         for attempt in range(1000):
             if self.is_good(bid):
                 return bid
-            idx = random.randint(0,len(self.all_bids_list))
+            idx = random.randint(0, len(self.all_bids_list))
             bid = self.all_bids_list[idx]
         if not self.is_good(bid):
-            bid=self.optimal_default_bid
+            bid = self.optimal_default_bid
         return bid
 
     def on_negotiation_continues(self):
@@ -281,22 +285,23 @@ class SuperAgent(DefaultParty):
                 break
             idx = random.randint(0, len(self.all_bids_list))
             bid = self.all_bids_list[idx]
-        if self._progress.get(int(time() * 1000))>0.99 and self.is_good(self.best_offer_bid):
+        if self._progress.get(int(time() * 1000)) > 0.99 and self.is_good(self.best_offer_bid):
             bid = self.best_offer_bid
         if not self.is_good(bid):
-           bid = self.optimal_default_bid
+            bid = self.optimal_default_bid
         return bid
-    def cmp_utility(self,first_bid,second_bid):
-        #return 1 if first_bid with higher utility, 0 else
+
+    def cmp_utility(self, first_bid, second_bid):
+        # return 1 if first_bid with higher utility, 0 else
         return 1
 
     def _find_bid(self):
-        bid:Bid = None
+        bid: Bid = None
         if self.best_offer_bid is None:
             self.best_offer_bid = self._last_received_bid
-        elif self.cmp_utility(self._last_received_bid,self.best_offer_bid):
+        elif self.cmp_utility(self._last_received_bid, self.best_offer_bid):
             self.best_offer_bid = self._last_received_bid
-            #bid= self.best_offer_bid
+            # bid= self.best_offer_bid
         if self.is_near_negotiation_end():
             bid = self.on_negotiation_near_end()
         else:
@@ -305,11 +310,11 @@ class SuperAgent(DefaultParty):
         action: Offer = Offer(self._me, bid)
         return action
 
-    
     def _my_turn(self):
         # save average of the last avgSplit offers (only when frequency table is stabilized)
         if self.is_near_negotiation_end():
-            index = int((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
+            index = int(
+                (self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
             self.opSum[index] += self.calc_op_value(self._last_received_bid)
             self.opCounter[index] += 1
         if self.is_good(self._last_received_bid):
@@ -319,3 +324,17 @@ class SuperAgent(DefaultParty):
             action = self._find_bid()
 
         val(self.getConnection()).send(action)
+
+    def learn(self):
+        for path in self._data_paths:
+            try:
+                with open(path) as f:
+                    nego_data = json.load(f)
+                    self._persistent_state.update(nego_data)
+            except:
+                raise Exception(f"Negotiation data path {0} does not exist".format(path))
+        try:
+            with open(self._persistent_path) as pers_file:
+                json.dump(self._persistent_state, pers_file)
+        except:
+            raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))
