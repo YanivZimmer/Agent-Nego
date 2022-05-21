@@ -32,6 +32,7 @@ from geniusweb.profileconnection.ProfileConnectionFactory import (
     ProfileConnectionFactory,
 )
 
+from agents.super_agent.utils.persistent_data import PersistentData
 from agents.super_agent.utils.utils import get_ms_current_time
 from agents.super_agent.utils.pair import Pair
 
@@ -44,6 +45,10 @@ class SuperAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
+        self._std_util = 0.1
+        self._avg_utility = 0.9
+        self._util_threshold = 0.95
+        self._persistent_state:PersistentData = PersistentData()
         self.t_split = None
         self.best_offer_bid:Bid = None
         self.all_bids_list = []
@@ -249,6 +254,14 @@ class SuperAgent(DefaultParty):
         max_value = 0.95
         if self.optimal_default_bid != None:
             max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
+            avg_max_utility = self._persistent_state._get_avg_max_utility(self._opponent_name) \
+                if self._persistent_state._known_opponent(self._opponent_name)\
+                else self._avg_utility
+
+            self._util_threshold = max_value - (max_value-0.4*avg_max_utility-0.6*self._avg_utility+self._std_util**2)* \
+                                   (math.exp(self.alpha*self._progress.get(get_ms_current_time())-1)/math.exp(self.alpha)-1)
+
+            return self.utilitySpace.get_utility(bid) >= self._util_threshold
 
     def on_negotiation_near_end(self):
         bid = Bid()
