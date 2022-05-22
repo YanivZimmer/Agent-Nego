@@ -1,13 +1,17 @@
 import json
 import logging
 import math
+import os.path
 import random
 import sys
+import json
+import uuid
 from typing import Dict, Any
 from time import time
 from typing import cast
 from collections import defaultdict
 from geniusweb.actions.ActionWithBid import ActionWithBid
+from geniusweb.profileconnection.ProfileInterface import ProfileInterface
 from geniusweb.actions.Accept import Accept
 from geniusweb.actions.Action import Action
 from geniusweb.actions.Offer import Offer
@@ -19,6 +23,7 @@ from geniusweb.inform.Inform import Inform
 from geniusweb.inform.Settings import Settings
 from geniusweb.inform.YourTurn import YourTurn
 from geniusweb.issuevalue.Bid import Bid
+from geniusweb.bidspace.AllBidsList import AllBidsList
 from geniusweb.party.Capabilities import Capabilities
 from geniusweb.party.DefaultParty import DefaultParty
 from geniusweb.utils import val
@@ -32,9 +37,9 @@ from geniusweb.profileconnection.ProfileConnectionFactory import (
     ProfileConnectionFactory,
 )
 
-from agents.super_agent.utils.persistent_data import PersistentData
 from agents.super_agent.utils.utils import get_ms_current_time
 from agents.super_agent.utils.pair import Pair
+from agents.super_agent.utils.persistent_data import PersistentData
 
 
 class SuperAgent(DefaultParty):
@@ -45,31 +50,25 @@ class SuperAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
-        self._persistent_path = None
-        self._data_paths = []
-        self._std_util = 0.1
-        self._avg_utility = 0.9
-        self._util_threshold = 0.95
-        self._persistent_state: PersistentData = PersistentData()
         self.t_split = None
         self.best_offer_bid: Bid = None
         self.all_bids_list = []
         self.optimal_default_bid: Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
-        self._utilspace: LinearAdditive = None  # type:ignore
         self._profile = None
+        self._profile_interface: ProfileInterface = None
         self._last_received_bid: Bid = None
-        self.utilThreshold = 0.95
-        self.utilitySpace = None
+        self.util_threshold = 0.95
+        self._utility_space = None
         self._protocol = None
         # estimate opponent time-variant threshold function
-        self.defualtAlpha = 10.7
-        self.alpha = self.defualtAlpha
+        self.default_alpha = 10.7
+        self.alpha = self.default_alpha
         self.t_split = 40
         self.t_phase = 0.2
-        self.opCounter = [0] * self.t_split
-        self.opSum = [0.0] * self.t_split
-        self.opThreshold = [0.0] * self.t_split
+        self.op_counter = [0] * self.t_split
+        self.op_sum = [0.0] * self.t_split
+        self.op_threshold = [0.0] * self.t_split
         # game details
         self._me = None
         self._opponent_name = None
@@ -80,6 +79,15 @@ class SuperAgent(DefaultParty):
         self._profile = None
         self._progress = None
 
+        self._persistent_path = None
+        self._persistent_data: PersistentData = None
+        self._avg_utility = 0.9
+        self._std_utility = 0.1
+
+        self._all_bid_list: AllBidsList = None
+        self._optimal_bid = None
+        self._max_bid_space_iteration = 50000
+
     # Override
     def notifyChange(self, info: Inform):
         # self.getReporter().log(logging.INFO,"received info:"+str(info))
@@ -87,12 +95,24 @@ class SuperAgent(DefaultParty):
             settings: Settings = cast(Settings, info)
             self._me = settings.getID()
             self._progress = settings.getProgress()
-            self._protocol = settings.getProtocol()
-            profile_connection = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
-            )
-            self._profile = profile_connection.getProfile()
-            self._domain = self._profile.getDomain()
+            self._protocol = settings.getProtocol().getURI().getPath()
+            self._parameters = settings.getParameters()
+            if "persistentstate" in self._parameters.getParameters():
+                # TODO: fix persistent path initialization
+                persistent_state_path = self._parameters.get('persistentstate')
+                print(persistent_state_path)
+                self._persistent_path = uuid.uuid4()
+                # print("persistent_space:{}".format(self._persistent_path))
+
+            if self._persistent_path is not None and type(self._persistent_path) == str and os.path.exists(
+                    self._persistent_path):
+                # json load
+                self._persistent_data: PersistentData = json.loads(self._persistent_path)
+                self._avg_utility = self._persistent_data.avg_utility
+                self._std_utility = self._persistent_data.std_utility
+                print("avg: " + self._avg_utility + "  std: " + self._std_utility * self._std_utility)
+            else:
+                self._persistent_data = PersistentData()
 
             if "Learn" == self._protocol:
                 # learning
@@ -102,6 +122,12 @@ class SuperAgent(DefaultParty):
                 # We are in the negotiation step.
                 # TODO: fill the other stuff here
                 # Obtain all of the issues in the current negotiation domain
+                self._profile_interface = ProfileConnectionFactory.create(
+                    info.getProfile().getURI(), self.getReporter()
+                )
+                self._profile = self._profile_interface.getProfile()
+                self._domain = self._profile.getDomain()
+
                 issues = self._domain.getIssues()
                 for issue in issues:
                     p = Pair()
@@ -114,6 +140,32 @@ class SuperAgent(DefaultParty):
                         vstr = self.value_to_str(v, p)
                         p.vlist[vstr] = 0
                     self._freq_map[issue] = p
+
+                self._utility_space = self._profile
+                self._all_bid_list: AllBidsList = AllBidsList(domain=self._domain)
+                r = self._max_bid_space_iteration > self._all_bid_list.size()
+                if r is True:
+                    mx_util = 0
+                    bid_space_size = self._all_bid_list.size()
+                    for i in range(bid_space_size):
+                        bid = self._all_bid_list.get(i)
+                        candidate = self._utility_space.getUtility(bid=bid)
+                        if candidate > mx_util:
+                            mx_util = candidate
+                            self._optimal_bid = bid
+                else:
+                    mx_util = 0
+                    bid_space_size = self._all_bid_list.size()
+                    for attempt in range(self._max_bid_space_iteration):
+                        i = random.randint(0, bid_space_size)
+                        bid = self._all_bid_list.get(i)
+                        candidate = self._utility_space.getUtility(bid=bid)
+                        if candidate > mx_util:
+                            mx_util = candidate
+                            self._optimal_bid = bid
+
+
+
 
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -238,7 +290,7 @@ class SuperAgent(DefaultParty):
             return False
         value = self.calc_op_value(bid=bid)
         index = ((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
-        op_threshold = max(1 - 2 * self.opThreshold[index], 0.2) if self.opThreshold is not None else 0.6
+        op_threshold = max(1 - 2 * self.op_threshold[index], 0.2) if self.op_threshold is not None else 0.6
         return value > op_threshold
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
@@ -256,16 +308,6 @@ class SuperAgent(DefaultParty):
         max_value = 0.95
         if self.optimal_default_bid != None:
             max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
-            avg_max_utility = self._persistent_state._get_avg_max_utility(self._opponent_name) \
-                if self._persistent_state._known_opponent(self._opponent_name) \
-                else self._avg_utility
-
-            self._util_threshold = max_value - (
-                        max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_util ** 2) * \
-                                   (math.exp(self.alpha * self._progress.get(get_ms_current_time()) - 1) / math.exp(
-                                       self.alpha) - 1)
-
-            return self.utilitySpace.get_utility(bid) >= self._util_threshold
 
     def on_negotiation_near_end(self):
         bid = Bid()
@@ -315,8 +357,8 @@ class SuperAgent(DefaultParty):
         if self.is_near_negotiation_end():
             index = int(
                 (self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
-            self.opSum[index] += self.calc_op_value(self._last_received_bid)
-            self.opCounter[index] += 1
+            self.op_sum[index] += self.calc_op_value(self._last_received_bid)
+            self.op_counter[index] += 1
         if self.is_good(self._last_received_bid):
             # if the last bid is good- accept it.
             action = Accept(self._me, self._last_received_bid)
@@ -324,17 +366,3 @@ class SuperAgent(DefaultParty):
             action = self._find_bid()
 
         val(self.getConnection()).send(action)
-
-    def learn(self):
-        for path in self._data_paths:
-            try:
-                with open(path) as f:
-                    nego_data = json.load(f)
-                    self._persistent_state.update(nego_data)
-            except:
-                raise Exception(f"Negotiation data path {0} does not exist".format(path))
-        try:
-            with open(self._persistent_path) as pers_file:
-                json.dump(self._persistent_state, pers_file)
-        except:
-            raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))
