@@ -10,11 +10,13 @@ from typing import Dict, Any
 from time import time
 from typing import cast
 from collections import defaultdict
+from typing import List
 from geniusweb.actions.ActionWithBid import ActionWithBid
 from geniusweb.profileconnection.ProfileInterface import ProfileInterface
 from geniusweb.actions.Accept import Accept
 from geniusweb.actions.Action import Action
 from geniusweb.actions.Offer import Offer
+from geniusweb.actions.FileLocation import FileLocation
 from geniusweb.issuevalue.Domain import Domain
 from geniusweb.actions.PartyId import PartyId
 from geniusweb.inform.ActionDone import ActionDone
@@ -79,7 +81,7 @@ class SuperAgent(DefaultParty):
         self._profile = None
         self._progress = None
 
-        self._persistent_path = None
+        self._persistent_path: uuid.UUID = None
         self._persistent_data: PersistentData = None
         self._avg_utility = 0.9
         self._std_utility = 0.1
@@ -87,6 +89,10 @@ class SuperAgent(DefaultParty):
         self._all_bid_list: AllBidsList = None
         self._optimal_bid = None
         self._max_bid_space_iteration = 50000
+
+        # NeogtiationData
+        self._data_paths_raw: List[str] = []
+        self.data_paths: List[str] = []
 
     # Override
     def notifyChange(self, info: Inform):
@@ -100,12 +106,15 @@ class SuperAgent(DefaultParty):
             if "persistentstate" in self._parameters.getParameters():
                 # TODO: fix persistent path initialization
                 persistent_state_path = self._parameters.get('persistentstate')
-                print(persistent_state_path)
-                self._persistent_path = uuid.uuid4()
+                if isinstance(persistent_state_path, str):
+                    persistent_state_path_str = cast(str, persistent_state_path)
+                    path_persistent_state_uuid = uuid.UUID(persistent_state_path_str)
+                    self._persistent_path = FileLocation(path_persistent_state_uuid).getFile()
+                else:
+                    print("persistent_state in not string")
                 # print("persistent_space:{}".format(self._persistent_path))
 
-            if self._persistent_path is not None and type(self._persistent_path) == str and os.path.exists(
-                    self._persistent_path):
+            if self._persistent_path is not None and os.path.exists(self._persistent_path):
                 # json load
                 self._persistent_data: PersistentData = json.loads(self._persistent_path)
                 self._avg_utility = self._persistent_data.avg_utility
@@ -113,6 +122,12 @@ class SuperAgent(DefaultParty):
                 print("avg: " + self._avg_utility + "  std: " + self._std_utility * self._std_utility)
             else:
                 self._persistent_data = PersistentData()
+            # TODO: add negotiondata
+            if "negotiationdata" in self._parameters.getParameters():
+                self._data_paths_raw = self._parameters.get("negotiationdata")
+                self.data_paths = []
+                for data_path in self._data_paths_raw:
+                    self.data_paths.append(FileLocation(uuid.UUID(data_path)).getFile())
 
             if "Learn" == self._protocol:
                 # learning
@@ -122,11 +137,18 @@ class SuperAgent(DefaultParty):
                 # We are in the negotiation step.
                 # TODO: fill the other stuff here
                 # Obtain all of the issues in the current negotiation domain
+
+                # TODO: initialize negotiationdata
                 self._profile_interface = ProfileConnectionFactory.create(
                     info.getProfile().getURI(), self.getReporter()
                 )
                 self._profile = self._profile_interface.getProfile()
                 self._domain = self._profile.getDomain()
+
+                if self._freq_map is None:
+                    self._freq_map = defaultdict()
+                else:
+                    self._freq_map.clear()
 
                 issues = self._domain.getIssues()
                 for issue in issues:
