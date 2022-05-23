@@ -117,3 +117,10 @@ class PersistentData(ABC):
             alpha = alpha*t_time + calibrated_polynom[i]
         print("alpha={0}".format(alpha))
         return alpha
+
+
+    def _get_avg_max_utility(self,opponent:str):
+        if opponent in self._avg_max_utility_opponent:
+            return self._avg_max_utility_opponent[opponent]
+        return None
+
