@@ -54,7 +54,6 @@ class SuperAgent(DefaultParty):
         super().__init__()
         self.t_split = None
         self.best_offer_bid: Bid = None
-        self.all_bids_list = []
         self.optimal_default_bid: Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
@@ -212,8 +211,9 @@ class SuperAgent(DefaultParty):
             # This is a super party
             if self._last_received_bid is not None:
                 self.getReporter().log(logging.INFO, "sending accept:")
-                accept = Accept(self._me, self._last_received_bid)
-                val(self.getConnection()).send(accept)
+                action = self._my_turn()
+                # accept = Accept(self._me, self._last_received_bid)
+                val(self.getConnection()).send(action)
             else:
                 # We have no clue about our profile
                 offer: Offer = Offer(self._me, Bid({}))
@@ -311,7 +311,8 @@ class SuperAgent(DefaultParty):
         if bid is None:
             return False
         value = self.calc_op_value(bid=bid)
-        index = ((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
+        index = int(
+            ((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase)))
         op_threshold = max(1 - 2 * self.op_threshold[index], 0.2) if self.op_threshold is not None else 0.6
         return value > op_threshold
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
@@ -332,27 +333,27 @@ class SuperAgent(DefaultParty):
             max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
 
     def on_negotiation_near_end(self):
-        bid = Bid()
+        bid: Bid = None
         for attempt in range(1000):
             if self.is_good(bid):
                 return bid
-            idx = random.randint(0, len(self.all_bids_list))
-            bid = self.all_bids_list[idx]
+            idx = random.randint(0, self._all_bid_list.size())
+            bid = self._all_bid_list.get(idx)
         if not self.is_good(bid):
             bid = self.optimal_default_bid
         return bid
 
     def on_negotiation_continues(self):
-        bid = Bid()
+        bid: Bid = None
         for attempt in range(1000):
-            if bid == self.optimal_default_bid or self.is_good(bid) or self.is_op_good(bid):
+            if bid == self._optimal_bid or self.is_good(bid) or self.is_op_good(bid):
                 break
-            idx = random.randint(0, len(self.all_bids_list))
-            bid = self.all_bids_list[idx]
+            idx = random.randint(0, self._all_bid_list.size())
+            bid = self._all_bid_list.get(idx)
         if self._progress.get(int(time() * 1000)) > 0.99 and self.is_good(self.best_offer_bid):
             bid = self.best_offer_bid
         if not self.is_good(bid):
-            bid = self.optimal_default_bid
+            bid = self._optimal_bid
         return bid
 
     def cmp_utility(self, first_bid, second_bid):
@@ -371,6 +372,7 @@ class SuperAgent(DefaultParty):
         else:
             bid = self.on_negotiation_continues()
         # action=Action(my_user,bid)
+
         action: Offer = Offer(self._me, bid)
         return action
 
@@ -386,5 +388,4 @@ class SuperAgent(DefaultParty):
             action = Accept(self._me, self._last_received_bid)
         else:
             action = self._find_bid()
-
-        val(self.getConnection()).send(action)
+        return action

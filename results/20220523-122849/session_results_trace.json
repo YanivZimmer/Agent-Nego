@@ -1,0 +1,108 @@
+{
+  "actions": [
+    {
+      "Offer": {
+        "actor": "agents_boulware_agent_boulware_agent_BoulwareAgent_1",
+        "bid": {
+          "issuevalues": {
+            "issueE": "valueM",
+            "issueC": "valueA",
+            "issueD": "valueH",
+            "issueA": "valueB",
+            "issueB": "valueE"
+          }
+        },
+        "utilities": {
+          "agents_boulware_agent_boulware_agent_BoulwareAgent_1": 1.0,
+          "agents_super_agent_super_agent_SuperAgent_2": 0.2061406266
+        }
+      }
+    },
+    {
+      "Accept": {
+        "actor": "agents_super_agent_super_agent_SuperAgent_2",
+        "bid": {
+          "issuevalues": {
+            "issueE": "valueM",
+            "issueC": "valueA",
+            "issueD": "valueH",
+            "issueA": "valueB",
+            "issueB": "valueE"
+          }
+        },
+        "utilities": {
+          "agents_boulware_agent_boulware_agent_BoulwareAgent_1": 1.0,
+          "agents_super_agent_super_agent_SuperAgent_2": 0.2061406266
+        }
+      }
+    }
+  ],
+  "connections": [
+    "agents_boulware_agent_boulware_agent_BoulwareAgent_1",
+    "agents_super_agent_super_agent_SuperAgent_2"
+  ],
+  "progress": {
+    "ProgressTime": {
+      "duration": 10000,
+      "start": 1653298129766
+    }
+  },
+  "settings": {
+    "SAOPSettings": {
+      "participants": [
+        {
+          "TeamInfo": {
+            "parties": [
+              {
+                "party": {
+                  "partyref": "pythonpath:agents.boulware_agent.boulware_agent.BoulwareAgent",
+                  "parameters": {}
+                },
+                "profile": "file:domains/domain00/profileA.json"
+              }
+            ]
+          }
+        },
+        {
+          "TeamInfo": {
+            "parties": [
+              {
+                "party": {
+                  "partyref": "pythonpath:agents.super_agent.super_agent.SuperAgent",
+                  "parameters": {
+                    "storage_dir": "agent_storage/SuperAgent"
+                  }
+                },
+                "profile": "file:domains/domain00/profileB.json"
+              }
+            ]
+          }
+        }
+      ],
+      "deadline": {
+        "DeadlineTime": {
+          "durationms": 10000
+        }
+      }
+    }
+  },
+  "partyprofiles": {
+    "agents_boulware_agent_boulware_agent_BoulwareAgent_1": {
+      "party": {
+        "partyref": "pythonpath:agents.boulware_agent.boulware_agent.BoulwareAgent",
+        "parameters": {}
+      },
+      "profile": "file:domains/domain00/profileA.json"
+    },
+    "agents_super_agent_super_agent_SuperAgent_2": {
+      "party": {
+        "partyref": "pythonpath:agents.super_agent.super_agent.SuperAgent",
+        "parameters": {
+          "storage_dir": "agent_storage/SuperAgent"
+        }
+      },
+      "profile": "file:domains/domain00/profileB.json"
+    }
+  },
+  "error": null
+}
