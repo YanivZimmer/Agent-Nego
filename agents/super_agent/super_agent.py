@@ -54,7 +54,7 @@ class SuperAgent(DefaultParty):
         super().__init__()
         self.t_split = None
         self.best_offer_bid: Bid = None
-        self.optimal_default_bid: Bid = None
+        # self.optimal_default_bid: Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._profile_interface: ProfileInterface = None
@@ -84,14 +84,13 @@ class SuperAgent(DefaultParty):
         self._persistent_data: PersistentData = None
         self._avg_utility = 0.9
         self._std_utility = 0.1
-
         self._all_bid_list: AllBidsList = None
         self._optimal_bid = None
         self._max_bid_space_iteration = 50000
 
         # NeogtiationData
         self._data_paths_raw: List[str] = []
-        self.data_paths: List[str] = []
+        self._data_paths: List[str] = []
 
     # Override
     def notifyChange(self, info: Inform):
@@ -124,9 +123,9 @@ class SuperAgent(DefaultParty):
             # TODO: add negotiondata
             if "negotiationdata" in self._parameters.getParameters():
                 self._data_paths_raw = self._parameters.get("negotiationdata")
-                self.data_paths = []
+                self._data_paths = []
                 for data_path in self._data_paths_raw:
-                    self.data_paths.append(FileLocation(uuid.UUID(data_path)).getFile())
+                    self._data_paths.append(FileLocation(uuid.UUID(data_path)).getFile())
 
             if "Learn" == self._protocol:
                 # learning
@@ -323,14 +322,20 @@ class SuperAgent(DefaultParty):
     def calc_utility(self, bid):
         # get utility from utility space
         # TODO implement
-        return 1
+        return self._utility_space.getUtility(bid)
 
     def is_good(self, bid):
-        if bid == None:
+        if bid is None:
             return False
-        max_value = 0.95
-        if self.optimal_default_bid != None:
-            max_value = 0.95 * self.calc_utility(self.optimal_default_bid)
+        max_value = 0.95 if self._optimal_bid is None else 0.95 * float(self.calc_utility(self._optimal_bid))
+        avg_max_utility = self._persistent_data.get_avg_max_utility(self._opponent_name) \
+            if self._persistent_data._known_opponent(self._opponent_name) \
+            else self._avg_utility
+        self._util_threshold = max_value - (
+                max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
+                               (math.exp(self.alpha * self._progress.get(get_ms_current_time()) - 1) / math.exp(
+                                   self.alpha) - 1)
+        return float(self.calc_utility(bid)) >= self._util_threshold
 
     def on_negotiation_near_end(self):
         bid: Bid = None
@@ -340,14 +345,14 @@ class SuperAgent(DefaultParty):
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if not self.is_good(bid):
-            bid = self.optimal_default_bid
+            bid = self._optimal_bid
         return bid
 
     def on_negotiation_continues(self):
         bid: Bid = None
         for attempt in range(1000):
             if bid == self._optimal_bid or self.is_good(bid) or self.is_op_good(bid):
-                break
+                return bid
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if self._progress.get(int(time() * 1000)) > 0.99 and self.is_good(self.best_offer_bid):
@@ -358,7 +363,7 @@ class SuperAgent(DefaultParty):
 
     def cmp_utility(self, first_bid, second_bid):
         # return 1 if first_bid with higher utility, 0 else
-        return 1
+        return self._utility_space.getUtility(first_bid) > self._utility_space.getUtility(second_bid)
 
     def _find_bid(self):
         bid: Bid = None
@@ -371,7 +376,6 @@ class SuperAgent(DefaultParty):
             bid = self.on_negotiation_near_end()
         else:
             bid = self.on_negotiation_continues()
-        # action=Action(my_user,bid)
 
         action: Offer = Offer(self._me, bid)
         return action
@@ -389,3 +393,17 @@ class SuperAgent(DefaultParty):
         else:
             action = self._find_bid()
         return action
+
+    def learn(self):
+        for path in self._data_paths:
+            try:
+                with open(path) as f:
+                    nego_data = json.load(f)
+                    self._persistent_data.update(nego_data)
+            except:
+                raise Exception(f"Negotiation data path {0} does not exist".format(path))
+        try:
+            with open(self._persistent_data) as pers_file:
+                json.dump(self._persistent_data, pers_file)
+        except:
+            raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))

@@ -1,7 +1,7 @@
 from abc import ABC
 from collections import defaultdict
 from typing import List
-from negotiation_data import NegotiationData
+from agents.super_agent.utils.negotiation_data import NegotiationData
 import math
 
 
@@ -86,41 +86,39 @@ class PersistentData(ABC):
             smoothed_time_util[i] = 0.0
 
         for i in range(self._t_split):
-            for j in range(max(0, i-self._smooth_width), min(i+self._smooth_width+1,self._t_split)):
+            for j in range(max(0, i - self._smooth_width), min(i + self._smooth_width + 1, self._t_split)):
                 smoothed_time_util[i] += opponent_time_util[j]
-            smoothed_time_util[i] /= (min(i+self._smooth_width+1,self._t_split)-max(i-self._smooth_width,0))
+            smoothed_time_util[i] /= (min(i + self._smooth_width + 1, self._t_split) - max(i - self._smooth_width, 0))
 
         return smoothed_time_util
 
     def _calc_alpha(self, opponent: str):
-        alpha_arr=self._get_smooth_threshold_over_time(opponent)
+        alpha_arr = self._get_smooth_threshold_over_time(opponent)
         if alpha_arr is None:
             return self._default_alpha
-        max_idx=0
-        t=0
+        max_idx = 0
+        t = 0
         for max_idx in range(self._t_split):
-            if alpha_arr[max_idx]<0.2:
+            if alpha_arr[max_idx] < 0.2:
                 break
         max_val = alpha_arr[0]
-        min_val = alpha_arr[max(max_idx-self._smooth_width-1, 0)]
+        min_val = alpha_arr[max(max_idx - self._smooth_width - 1, 0)]
         if max_val - min_val < 0.1:
             return self._default_alpha
         for t in range(max_idx):
-            if alpha_arr[t]<(max_val-self._opponent_decrease*(max_val-min_val)):
+            if alpha_arr[t] < (max_val - self._opponent_decrease * (max_val - min_val)):
                 break
         calibrated_polynom = [572.83, -1186.7, 899.29, -284.68, 32.911]
         alpha = calibrated_polynom[0]
-        t_time = self._t_phase+(1-self._t_phase)*\
-                 (max_idx*(t/self._t_split)+\
-                  ((self._t_split-max_idx)*0.85)/self._t_split)
-        for i in range(1,len(calibrated_polynom)):
-            alpha = alpha*t_time + calibrated_polynom[i]
+        t_time = self._t_phase + (1 - self._t_phase) * \
+                 (max_idx * (t / self._t_split) + \
+                  ((self._t_split - max_idx) * 0.85) / self._t_split)
+        for i in range(1, len(calibrated_polynom)):
+            alpha = alpha * t_time + calibrated_polynom[i]
         print("alpha={0}".format(alpha))
         return alpha
 
-
-    def _get_avg_max_utility(self,opponent:str):
+    def get_avg_max_utility(self, opponent: str):
         if opponent in self._avg_max_utility_opponent:
             return self._avg_max_utility_opponent[opponent]
         return None
-
