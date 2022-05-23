@@ -1,0 +1,54 @@
+{
+  "actions": [],
+  "connections": [],
+  "progress": null,
+  "settings": {
+    "SAOPSettings": {
+      "participants": [
+        {
+          "TeamInfo": {
+            "parties": [
+              {
+                "party": {
+                  "partyref": "pythonpath:agents.boulware_agent.boulware_agent.BoulwareAgent",
+                  "parameters": {}
+                },
+                "profile": "file:domains/domain00/profileA.json"
+              }
+            ]
+          }
+        },
+        {
+          "TeamInfo": {
+            "parties": [
+              {
+                "party": {
+                  "partyref": "pythonpath:agents.super_agent.super_agent.SuperAgent",
+                  "parameters": {
+                    "storage_dir": "agent_storage/TemplateAgent"
+                  }
+                },
+                "profile": "file:domains/domain00/profileB.json"
+              }
+            ]
+          }
+        }
+      ],
+      "deadline": {
+        "DeadlineTime": {
+          "durationms": 10000
+        }
+      }
+    }
+  },
+  "partyprofiles": {},
+  "error": {
+    "message": "None:Failed to start up session",
+    "stackTrace": [],
+    "cause": {
+      "message": "('Failed to create connection to party agents.super_agent.super_agent.SuperAgent', ModuleNotFoundError(\"No module named 'agents.super_agent.utils.negotiation_data'\"))",
+      "stackTrace": [],
+      "cause": null
+    }
+  }
+}
