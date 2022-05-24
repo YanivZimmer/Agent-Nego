@@ -323,7 +323,7 @@ class SuperAgent(DefaultParty):
         # get utility from utility space
         return self._utility_space.getUtility(bid)
 
-    def is_good(self, bid):
+    def is_good(self, bid, soft=1):
         if bid is None:
             return False
         max_value = 0.95 if self._optimal_bid is None else 0.95 * float(self.calc_utility(self._optimal_bid))
@@ -334,17 +334,19 @@ class SuperAgent(DefaultParty):
                 max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
                                (math.exp(self.alpha * self._progress.get(get_ms_current_time()) - 1) / math.exp(
                                    self.alpha) - 1)
-        return float(self.calc_utility(bid)) >= self._util_threshold
+        return float(self.calc_utility(bid)) >= soft*self._util_threshold
 
     def on_negotiation_near_end(self):
         bid: Bid = None
+        soft=0.85
         for attempt in range(1000):
-            if self.is_good(bid):
-                break
+            soft = max(soft-0.05,0.2)
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
-        if not self.is_good(bid):
-            bid = self._optimal_bid
+            if self.is_good(bid,soft):
+                break
+        # if not self.is_good(bid,soft+0.1):
+        #     bid = self._optimal_bid
         return bid
 
     def on_negotiation_continues(self):
