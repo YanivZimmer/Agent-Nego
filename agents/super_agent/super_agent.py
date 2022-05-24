@@ -16,6 +16,7 @@ from geniusweb.profileconnection.ProfileInterface import ProfileInterface
 from geniusweb.actions.Accept import Accept
 from geniusweb.actions.Action import Action
 from geniusweb.actions.Offer import Offer
+from geniusweb.actions.LearningDone import LearningDone
 from geniusweb.actions.FileLocation import FileLocation
 from geniusweb.issuevalue.Domain import Domain
 from geniusweb.actions.PartyId import PartyId
@@ -52,7 +53,6 @@ class SuperAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
-        self.t_split = None
         self.best_offer_bid: Bid = None
         # self.optimal_default_bid: Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
@@ -130,7 +130,10 @@ class SuperAgent(DefaultParty):
             if "Learn" == self._protocol:
                 # learning
                 # TODO: fill the learning stuff here
-                pass
+                self.learn()
+                val(self.getConnection()).send(LearningDone(self._me))
+                # getConnection().send(newLearningDone(me));
+                # pass
             else:
                 # We are in the negotiation step.
                 # TODO: fill the other stuff here
@@ -341,7 +344,7 @@ class SuperAgent(DefaultParty):
         bid: Bid = None
         for attempt in range(1000):
             if self.is_good(bid):
-                return bid
+                break
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if not self.is_good(bid):
@@ -352,9 +355,10 @@ class SuperAgent(DefaultParty):
         bid: Bid = None
         for attempt in range(1000):
             if bid == self._optimal_bid or self.is_good(bid) or self.is_op_good(bid):
-                return bid
+                break
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
+        # TODO:: replacw with get_ms()
         if self._progress.get(int(time() * 1000)) > 0.99 and self.is_good(self.best_offer_bid):
             bid = self.best_offer_bid
         if not self.is_good(bid):
@@ -403,7 +407,8 @@ class SuperAgent(DefaultParty):
             except:
                 raise Exception(f"Negotiation data path {0} does not exist".format(path))
         try:
-            with open(self._persistent_data) as pers_file:
+            with open(self._persistent_path) as pers_file:
                 json.dump(self._persistent_data, pers_file)
         except:
+            # print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
             raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))
