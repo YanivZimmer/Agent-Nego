@@ -64,6 +64,7 @@ class SuperAgent(DefaultParty):
         self._profile_interface: ProfileInterface = None
         self._last_received_bid: Bid = None
         self._util_threshold = 0.95
+        self.pick_acceptence_pattern(random.randint(0,2))
         self._utility_space = None
         self._protocol = None
         # estimate opponent time-variant threshold function
@@ -330,11 +331,37 @@ class SuperAgent(DefaultParty):
         avg_max_utility = self._persistent_data.get_avg_max_utility(self._opponent_name) \
             if self._persistent_data._known_opponent(self._opponent_name) \
             else self._avg_utility
-        self._util_threshold = max_value - (
+        self._util_threshold = self._util_threshold_calculator(max_value, avg_max_utility)
+        return float(self.calc_utility(bid)) >= self._util_threshold
+
+    def pick_acceptence_pattern(self, pattern):
+        if pattern == 0:
+            self._util_threshold_calculator = lambda max_value, avg_max_utility : max_value - (
                 max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
                                (math.exp(self.alpha * self._progress.get(get_ms_current_time()) - 1) / math.exp(
                                    self.alpha) - 1)
-        return float(self.calc_utility(bid)) >= self._util_threshold
+        elif pattern == 1:
+            self._util_threshold_calculator = lambda max_value, avg_max_utility: max_value - (
+                    max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
+                         (math.exp(
+                             self.alpha * self._progress.get(
+                                 get_ms_current_time()) - 1) / math.exp(
+                             self.alpha) - 1) - (math.sin(4*(self._progress.get(
+                                 get_ms_current_time()) - 1))/10)
+        elif pattern == 2:
+            self._util_threshold_calculator = lambda max_value, avg_max_utility: max_value - (
+                    max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
+                         (math.exp(
+                             self.alpha * self._progress.get(
+                                 get_ms_current_time()) - 1) / math.exp(
+                             self.alpha) - 1) if self._progress.get(
+                                 get_ms_current_time()) - 1 < 0.7 else max_value - (
+                    max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
+                         (math.exp(
+                             1 * self._progress.get(
+                                 get_ms_current_time()) - 1) / math.exp(
+                             1) - 1)
+
 
     def on_negotiation_near_end(self):
         bid: Bid = None
