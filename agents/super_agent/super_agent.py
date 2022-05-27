@@ -68,7 +68,7 @@ class SuperAgent(DefaultParty):
         self.default_alpha = 10.7
         self.alpha = self.default_alpha
         self.t_split = 40
-        self.t_phase = 0.2
+        self.t_phase = 0.4
         self.op_counter = [0] * self.t_split
         self.op_sum = [0.0] * self.t_split
         self.op_threshold = [0.0] * self.t_split
@@ -338,16 +338,33 @@ class SuperAgent(DefaultParty):
 
     def on_negotiation_near_end(self):
         bid: Bid = None
-        soft=0.85
+        best_bid: Bid = None
+        soft = 0.8
+        top_bids = {}
+        best_bid_val=0
+        top_val1 = 0
+        top_val2 = 0
+        top_val3 = 0
         for attempt in range(1000):
-            soft = max(soft-0.05,0.2)
-            idx = random.randint(0, self._all_bid_list.size())
-            bid = self._all_bid_list.get(idx)
+            #soft = soft-0.01*random.randint(-3 , 4)
+            # if util > top_val1:
+            #     top_bids[util]=bid
+            #     top_val2=top_val1
+            #     top_val1=util
+            # elif util >top_val2:
+            #     top_bids[]
+            #
             if self.is_good(bid,soft):
                 break
-        # if not self.is_good(bid,soft+0.1):
+            idx = random.randint(0, self._all_bid_list.size())
+            bid = self._all_bid_list.get(idx)
+            util = self.calc_utility(bid)
+            if util > best_bid_val:
+                best_bid_val = util
+                best_bid = bid
+        # if not self.is_good(best_bid,0.7):
         #     bid = self._optimal_bid
-        return bid
+        return best_bid
 
     def on_negotiation_continues(self):
         bid: Bid = None
