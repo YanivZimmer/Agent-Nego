@@ -35,6 +35,7 @@ from geniusweb.issuevalue import DiscreteValue
 from geniusweb.issuevalue import NumberValue
 from geniusweb.profile.utilityspace.LinearAdditive import LinearAdditive
 from geniusweb.inform.Agreements import Agreements
+from geniusweb.references.Parameters import Parameters
 from geniusweb.profile.utilityspace.UtilitySpace import UtilitySpace
 from geniusweb.profileconnection.ProfileConnectionFactory import (
     ProfileConnectionFactory,
@@ -59,6 +60,7 @@ class SuperAgent(DefaultParty):
         # self.optimal_default_bid: Bid = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self._parameters: Parameters = None
         self._profile_interface: ProfileInterface = None
         self._last_received_bid: Bid = None
         self._util_threshold = 0.95
@@ -68,7 +70,7 @@ class SuperAgent(DefaultParty):
         self.default_alpha = 10.7
         self.alpha = self.default_alpha
         self.t_split = 40
-        self.t_phase = 0.2
+        self.t_phase = 0.5
         self.op_counter = [0] * self.t_split
         self.op_sum = [0.0] * self.t_split
         self.op_threshold = [0.0] * self.t_split
@@ -79,7 +81,6 @@ class SuperAgent(DefaultParty):
         # (issue,value,typeof(value) -> frequency
         self._freq_map = defaultdict()
         self._domain = None
-        self._profile = None
         self._progress = None
 
         self._persistent_path: str = None
@@ -87,7 +88,7 @@ class SuperAgent(DefaultParty):
         self._avg_utility = 0.9
         self._std_utility = 0.1
         self._all_bid_list: AllBidsList = None
-        self._optimal_bid = None
+        self._optimal_bid: Bid = None
         self._max_bid_space_iteration = 50000
 
         # NeogtiationData
@@ -100,7 +101,7 @@ class SuperAgent(DefaultParty):
         # self.getReporter().log(logging.INFO,"received info:"+str(info))
         if isinstance(info, Settings):
             settings: Settings = cast(Settings, info)
-            self._me = settings.getID()
+            self._me: PartyId = settings.getID()
             self._progress = settings.getProgress()
             self._protocol = settings.getProtocol().getURI().getPath()
             self._parameters = settings.getParameters()
@@ -118,9 +119,9 @@ class SuperAgent(DefaultParty):
             if self._persistent_path is not None and os.path.exists(self._persistent_path):
                 # json load
                 self._persistent_data: PersistentData = json.loads(self._persistent_path)
-                self._avg_utility = self._persistent_data.avg_utility
-                self._std_utility = self._persistent_data.std_utility
-                print("avg: " + self._avg_utility + "  std: " + self._std_utility * self._std_utility)
+                self._avg_utility = self._persistent_data._avg_utility
+                self._std_utility = self._persistent_data._std_utility
+                print("avg: {} std: {}".format(self._avg_utility, self._std_utility * self._std_utility))
             else:
                 self._persistent_data = PersistentData()
             # TODO: add negotiondata
@@ -250,7 +251,6 @@ class SuperAgent(DefaultParty):
         # TODO:  fix profile shit
         if self._profile_interface is not None:
             self._profile_interface.close()
-        #     self._profile = None
 
     def value_to_str(self, v: Value, p: Pair) -> str:
         v_str = ""
@@ -340,7 +340,7 @@ class SuperAgent(DefaultParty):
         bid: Bid = None
         for attempt in range(1000):
             if self.is_good(bid):
-                break
+                return bid
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if not self.is_good(bid):
@@ -351,7 +351,7 @@ class SuperAgent(DefaultParty):
         bid: Bid = None
         for attempt in range(1000):
             if bid == self._optimal_bid or self.is_good(bid) or self.is_op_good(bid):
-                break
+                return bid
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self.best_offer_bid):
