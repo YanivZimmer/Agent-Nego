@@ -367,7 +367,7 @@ class SuperAgent(DefaultParty):
         bid: Bid = None
         for attempt in range(1000):
             if self.is_good(bid):
-                return bid
+                break
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if not self.is_good(bid):
@@ -378,7 +378,7 @@ class SuperAgent(DefaultParty):
         bid: Bid = None
         for attempt in range(1000):
             if bid == self._optimal_bid or self.is_good(bid) or self.is_op_good(bid):
-                return bid
+                break
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self.best_offer_bid):
