@@ -1,46 +1,47 @@
 from typing import List
 
+
 class NegotiationData:
     tSplit: int = 40
 
     def __init__(self):
-        self.maxReceivedUtil: float = 0.0
-        self.agreementUtil: float = 0.0
-        self.opponentName: str = ''
+        self._max_received_util: float = 0.0
+        self._agreement_util: float = 0.0
+        self._opponent_name: str = ''
 
-        self.opponentUtil: float = 0.0
-        self.opponentUtilByTime:List[float] = [0.0] * NegotiationData.tSplit
+        self._opponent_util: float = 0.0
+        self._opponent_util_by_time: List[float] = [0.0] * NegotiationData.tSplit
 
-    def addAgreementUtil(self, agreementUtil: float):
-        self.agreementUtil = agreementUtil
-        if agreementUtil > self.maxReceivedUtil:
-            self.maxReceivedUtil = agreementUtil
+    def add_agreement_util(self, agreement_util: float):
+        self._agreement_util = agreement_util
+        if agreement_util > self._max_received_util:
+            self._max_received_util = agreement_util
 
-    def addBidUtil(self, bidUtil: float):
-        if bidUtil > self.maxReceivedUtil:
-            self.maxReceivedUtil = bidUtil
+    def add_bid_util(self, bid_util: float):
+        if bid_util > self._max_received_util:
+            self._max_received_util = bid_util
 
-    def updateOpponentOffers(self, opSum:List[float], opCounts: List[int]):
+    def update_opponent_offers(self, op_sum: List[float], op_counts: List[int]):
         for i in range(NegotiationData.tSplit):
-            self.opponentUtilByTime[i] = opSum[i] / opCounts[i] if opCounts[i] > 0 else 0.0
+            self._opponent_util_by_time[i] = op_sum[i] / op_counts[i] if op_counts[i] > 0 else 0.0
 
-    def setOpponentName(self, opponentName:str):
-        self.opponentName = opponentName
+    def set_opponent_name(self, opponent_name: str):
+        self._opponent_name = opponent_name
 
-    def setOpponentUtil(self, oppUtil: float):
-        self.opponentUtil = oppUtil
+    def set_opponent_util(self, opp_util: float):
+        self._opponent_util = opp_util
 
-    def getOpponentName(self):
-        return self.opponentName
+    def get_opponent_name(self):
+        return self._opponent_name
 
-    def getMaxReceivedUtil(self):
-        return self.maxReceivedUtil
+    def get_max_received_util(self):
+        return self._max_received_util
 
-    def getAgreementUtil(self):
-        return self.agreementUtil
+    def get_agreement_util(self):
+        return self._agreement_util
 
-    def getOpponentUtil(self):
-        return self.opponentUtil
+    def get_opponent_util(self):
+        return self._opponent_util
 
-    def getOpponentUtilByTime(self):
-        return self.opponentUtilByTime
+    def get_opponent_util_by_time(self):
+        return self._opponent_util_by_time

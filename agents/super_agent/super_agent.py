@@ -201,7 +201,7 @@ class SuperAgent(DefaultParty):
                     if agent_index != -1:
                         # which means index found
                         self._opponent_name = full_opponent_name[:agent_index]
-                        self._negotiation_data.setOpponentName(self._opponent_name)
+                        self._negotiation_data.set_opponent_name(self._opponent_name)
                         self.op_threshold = self._persistent_data.get_smooth_threshold_over_time(self._opponent_name
                                                                                                  )
                         if self.op_threshold is not None:
@@ -269,7 +269,7 @@ class SuperAgent(DefaultParty):
             self._last_received_bid = cast(Offer, action).getBid()
             self.update_freq_map(self._last_received_bid)
             util_value = float(self._utility_space.getUtility(self._last_received_bid))
-            self._negotiation_data.addBidUtil(util_value)
+            self._negotiation_data.add_bid_util(util_value)
 
     def update_freq_map(self, bid: Bid):
         if bid is not None:
@@ -422,15 +422,15 @@ class SuperAgent(DefaultParty):
         if len(agreements.getMap().items()) > 0:
             # Get the bid that is agreed upon and add it's value to our negotiation data
             agreement: Bid = agreements.getMap().values().__iter__().__next__()
-            self._negotiation_data.addAgreementUtil(float(self.calc_utility(agreement)))
-            self._negotiation_data.setOpponentUtil(self.calc_op_value(agreement))
+            self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
+            self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
 
             self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
             self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self._utility_space.getUtility(agreement)))
             self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:".format(self.calc_op_value(agreement)))
         else:
             if self._best_offer_bid is not None:
-                self._negotiation_data.addAgreementUtil(float(self.calc_utility(self._best_offer_bid)))
+                self._negotiation_data.add_agreement_util(float(self.calc_utility(self._best_offer_bid)))
             self.getReporter().log(logging.INFO,
                                    "!!!!!!!!!!!!!! NO AGREEMENT !!!!!!!!!!!!!!! /// MY THRESHOLD: {}".format(
                                        self._util_threshold))
@@ -438,6 +438,6 @@ class SuperAgent(DefaultParty):
         self.getReporter().log(logging.INFO, "TIME OF AGREEMENT: {}".format(self._progress.get(get_ms_current_time())))
         # update the opponent offers map, regardless of achieving agreement or not
         try:
-            self._negotiation_data.updateOpponentOffers(self.op_sum, self.op_counter)
+            self._negotiation_data.update_opponent_offers(self.op_sum, self.op_counter)
         except Exception as e:
             self.getReporter().log(logging.INFO, "Error in process_agreements")
