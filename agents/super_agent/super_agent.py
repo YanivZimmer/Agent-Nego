@@ -46,6 +46,7 @@ from agents.super_agent.utils.utils import get_ms_current_time
 from agents.super_agent.utils.pair import Pair
 from agents.super_agent.utils.persistent_data import PersistentData
 from agents.super_agent.utils.negotiation_data import NegotiationData
+from agents.super_agent.utils.bid_info import BidInfo
 
 
 class SuperAgent(DefaultParty):
@@ -64,7 +65,7 @@ class SuperAgent(DefaultParty):
         self._profile_interface: ProfileInterface = None
         self._last_received_bid: Bid = None
         self._util_threshold = 0.95
-        self.pick_acceptence_pattern(random.randint(0,2))
+        self.pick_acceptence_pattern(random.randint(0, 2))
         self._utility_space = None
         self._protocol = None
         # estimate opponent time-variant threshold function
@@ -336,18 +337,21 @@ class SuperAgent(DefaultParty):
 
     def pick_acceptence_pattern(self, pattern):
         if pattern == 0:
-            self._util_threshold_calculator = lambda max_value, avg_max_utility : max_value - (
-                max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
-                               (math.exp(self.alpha * self._progress.get(get_ms_current_time()) - 1) / math.exp(
-                                   self.alpha) - 1)
+            self._util_threshold_calculator = lambda max_value, avg_max_utility: max_value - (
+                    max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
+                             (math.exp(
+                                 self.alpha * self._progress.get(
+                                     get_ms_current_time()) - 1) / math.exp(
+                                 self.alpha) - 1)
         elif pattern == 1:
             self._util_threshold_calculator = lambda max_value, avg_max_utility: max_value - (
                     max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
                          (math.exp(
                              self.alpha * self._progress.get(
                                  get_ms_current_time()) - 1) / math.exp(
-                             self.alpha) - 1) - (math.sin(5*(self._progress.get(
-                                 get_ms_current_time()) - 1))/20)
+                             self.alpha) - 1) - (math.sin(
+                5 * (self._progress.get(
+                    get_ms_current_time()) - 1)) / 20)
         elif pattern == 2:
             self._util_threshold_calculator = lambda max_value, avg_max_utility: max_value - (
                     max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
@@ -355,12 +359,12 @@ class SuperAgent(DefaultParty):
                              self.alpha * self._progress.get(
                                  get_ms_current_time()) - 1) / math.exp(
                              self.alpha) - 1) if self._progress.get(
-                                 get_ms_current_time()) - 1 < 0.7 else max_value - (
+                get_ms_current_time()) - 1 < 0.7 else max_value - (
                     max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
-                         (math.exp(
-                             1 * self._progress.get(
-                                 get_ms_current_time()) - 1) / math.exp(
-                             1) - 1)
+                          (math.exp(
+                              1 * self._progress.get(
+                                  get_ms_current_time()) - 1) / math.exp(
+                              1) - 1)
 
     def negotiate_last_tries(self):
         # TODO: we can make the last bids during negotiation smarter than that
@@ -474,3 +478,12 @@ class SuperAgent(DefaultParty):
             self._negotiation_data.updateOpponentOffers(self.op_sum, self.op_counter)
         except Exception as e:
             pass
+
+    def generate_random_bids(self, number_of_bids):
+        randombids = []
+        for i in range(number_of_bids):
+            idx = random.randint(0, self._all_bid_list.size())
+            bid = self._all_bid_list.get(idx)
+            randombids.append(BidInfo(bid, self._utility_space.getUtility(bid)))
+        randombids.sort()
+        return randombids
