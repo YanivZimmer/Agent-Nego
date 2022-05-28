@@ -346,8 +346,8 @@ class SuperAgent(DefaultParty):
                          (math.exp(
                              self.alpha * self._progress.get(
                                  get_ms_current_time()) - 1) / math.exp(
-                             self.alpha) - 1) - (math.sin(4*(self._progress.get(
-                                 get_ms_current_time()) - 1))/10)
+                             self.alpha) - 1) - (math.sin(5*(self._progress.get(
+                                 get_ms_current_time()) - 1))/20)
         elif pattern == 2:
             self._util_threshold_calculator = lambda max_value, avg_max_utility: max_value - (
                     max_value - 0.4 * avg_max_utility - 0.6 * self._avg_utility + self._std_utility ** 2) * \
@@ -362,9 +362,24 @@ class SuperAgent(DefaultParty):
                                  get_ms_current_time()) - 1) / math.exp(
                              1) - 1)
 
+    def negotiate_last_tries(self):
+        # TODO: we can make the last bids during negotiation smarter than that
+        bid: Bid = None
+        for attempt in range(1000):
+            if self.cmp_utility(bid, self.best_offer_bid) and self.is_good(bid):
+                return bid
+            idx = random.randint(0, self._all_bid_list.size())
+            bid = self._all_bid_list.get(idx)
+        if self.is_good(self.best_offer_bid):
+            return self.best_offer_bid
+        return None
 
     def on_negotiation_near_end(self):
         bid: Bid = None
+        if self._progress.get(get_ms_current_time()) > 0.99:
+            bid = self.negotiate_last_tries()
+            if self.is_good(bid):
+                return bid
         for attempt in range(1000):
             if self.is_good(bid):
                 break
@@ -382,6 +397,7 @@ class SuperAgent(DefaultParty):
             idx = random.randint(0, self._all_bid_list.size())
             bid = self._all_bid_list.get(idx)
         if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self.best_offer_bid):
+            # TODO: I don't think this line is going to be ever executed
             bid = self.best_offer_bid
         if not self.is_good(bid):
             bid = self._optimal_bid
