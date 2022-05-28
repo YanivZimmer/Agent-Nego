@@ -94,7 +94,7 @@ class SuperAgent(DefaultParty):
 
     # Override
     def notifyChange(self, info: Inform):
-        self.getReporter().log(logging.INFO, "received info:" + str(info))
+        # self.getReporter().log(logging.INFO, "received info:" + str(info))
         if isinstance(info, Settings):
             settings: Settings = cast(Settings, info)
             self._me: PartyId = settings.getID()
@@ -238,7 +238,8 @@ class SuperAgent(DefaultParty):
     # Override
     def getCapabilities(self) -> Capabilities:
         return Capabilities(
-            set(["SAOP", "Learn"]), set(["geniusweb.profile.utilityspace.LinearAdditive"])
+            set(["SAOP", "Learn"]),
+            set(["geniusweb.profile.utilityspace.LinearAdditive"]),
         )
 
     # Override
@@ -317,9 +318,9 @@ class SuperAgent(DefaultParty):
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
     def is_near_negotiation_end(self):
-        self.getReporter().log(logging.WARNING,
-                               "is nego near end:{} :{}".format(self._progress.get(get_ms_current_time()),
-                                                                self.t_phase))
+        # self.getReporter().log(logging.WARNING,
+        #                        "is nego near end:{} :{}".format(self._progress.get(get_ms_current_time()),
+        #                                                         self.t_phase))
         return self._progress.get(time() * 1000) > self.t_phase
 
     def calc_utility(self, bid):
