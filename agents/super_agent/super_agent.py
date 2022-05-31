@@ -344,6 +344,8 @@ class SuperAgent(DefaultParty):
         return float(self.calc_utility(bid)) >= self._util_threshold
 
     def pick_acceptence_pattern(self, pattern):
+        patterns_desc = {0 : 'Noraml Decay', 1: 'Decaying with sinus', 2:'Decaying with step (alpha changing)'}
+        self.getReporter().log(logging.INFO, f"Acceptence pattern selected {patterns_desc[pattern]}")
         if pattern == 0:
             self._util_threshold_calculator = lambda max_value, avg_max_utility : max_value - (
                 max_value - 0.55 * self._avg_utility - 0.4 * avg_max_utility + 0.5 * pow(self._std_utility, 2)) * \
