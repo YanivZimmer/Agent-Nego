@@ -121,8 +121,9 @@ class SuperAgent(DefaultParty):
             else:
                 self._persistent_data = PersistentData()
             # TODO: add negotiondata
-            if "negotiationdata" in self._parameters.getParameters():
-                self._data_paths_raw = self._parameters.get("negotiationdata")
+            if "storage_dir" in self._parameters.getParameters():
+                self._storage_dir = self._parameters.get("storage_dir")
+                self._data_paths_raw = self._parameters.get("storage_dir")
                 self._data_paths = []
                 if isinstance(self._data_paths_raw, List):
                     for data_path in self._data_paths_raw:

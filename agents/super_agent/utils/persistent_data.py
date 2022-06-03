@@ -29,20 +29,20 @@ class PersistentData(ABC):
         self._opponent_utility_by_time = defaultdict()
 
     def update(self, negotiation_data: NegotiationData):
-        new_util = negotiation_data.getAgreementUtil() if negotiation_data.getAgreementUtil() > 0 else (
+        new_util = negotiation_data.get_agreement_util() if negotiation_data.get_agreement_util() > 0 else (
                 self._avg_utility - 1.1 * math.pow(self._std_utility, 2))
         self._avg_utility = (self._avg_utility * self._negotiations + new_util) / (self._negotiations + 1)
 
         self._negotiations += 1
 
-        self._nego_results.append(negotiation_data.getAgreementUtil())
+        self._nego_results.append(negotiation_data.get_agreement_util())
         self._std_utility = 0.0
 
         for util in self._nego_results:
             self._std_utility += math.pow(util - self._avg_utility, 2)
         self._std_utility = math.sqrt(self._std_utility / self._negotiations)
 
-        opponent = negotiation_data.getOpponentName()
+        opponent = negotiation_data.get_opponent_name()
 
         if opponent is not None:
             encounters = self._opponent_encounters.get(opponent) if opponent in self._opponent_encounters else 0
@@ -52,10 +52,10 @@ class PersistentData(ABC):
                 opponent) if opponent in self._avg_max_utility_opponent else 0.0
 
             self._avg_max_utility_opponent[opponent] = (
-                    (self._avg_utility * encounters + negotiation_data.getMaxReceivedUtil()) / (encounters + 1))
+                    (self._avg_utility * encounters + negotiation_data.get_max_received_util()) / (encounters + 1))
 
             avg_op_util = self._avg_opponent_utility.get(opponent) if opponent in self._avg_opponent_utility else 0.0
-            self._avg_opponent_utility[opponent] = (avg_op_util * encounters + negotiation_data.getOpponentUtil()) / (
+            self._avg_opponent_utility[opponent] = (avg_op_util * encounters + negotiation_data.get_opponent_util()) / (
                     encounters + 1)
 
             opponent_time_util: List[float] = []
@@ -64,7 +64,7 @@ class PersistentData(ABC):
             else:
                 opponent_time_util = [0.0] * self._t_split
 
-            new_util_data: List[float] = negotiation_data.getOpponentUtilByTime()
+            new_util_data: List[float] = negotiation_data.get_opponent_util_by_time()
 
             ratio = ((1 - self._new_weight) * opponent_time_util[0] + self._new_weight * new_util_data[0]) / \
                     opponent_time_util[0] if opponent_time_util[0] > 0.0 else 1
