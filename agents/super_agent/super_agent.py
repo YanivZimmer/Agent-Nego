@@ -4,7 +4,9 @@ import math
 import os.path
 import random
 import sys
-import json
+# import json
+import pickle
+from pathlib import Path
 import uuid
 from typing import Dict, Any
 from time import time
@@ -65,6 +67,7 @@ class SuperAgent(DefaultParty):
         self._parameters: Parameters = None
         self._utility_space = None
         self._domain = None
+        self._settings: Settings = None
 
         self._best_offer_bid: Bid = None
         self._profile = None
@@ -73,7 +76,8 @@ class SuperAgent(DefaultParty):
         # NeogtiationData
         self._negotiation_data: NegotiationData = None
         self._data_paths_raw: List[str] = []
-        self._data_paths: List[str] = []
+        # self._data_paths: List[str] = []
+        self._negotiation_data_paths: List[str] = []
         self._opponent_name = None
         self._freq_map = defaultdict()
         self._avg_utility = 0.95
@@ -91,145 +95,169 @@ class SuperAgent(DefaultParty):
         self._max_bid_space_iteration = 50000
         self._optimal_bid: Bid = None
         self._all_bid_list: AllBidsList = None
+        self._storage_dir: str = None
+
+    def create_empty_negotiation_data(self, opponent_name):
+        self._negotiation_data = NegotiationData(opponent_name=opponent_name)
+
+    def initialize_negotiation_data(self, opponent_name):
+        self._negotiation_data_paths = []
+        data_path_raw = os.path.join(self._storage_dir, f"negotiation_data_{opponent_name}.log")
+        self._negotiation_data_paths.append(data_path_raw)
+        if self._negotiation_data is not None and os.path.exists(data_path_raw):
+            # print("non-empty NegotiationData")
+            with open(data_path_raw, "rb") as negotiation_data_file:
+                self._negotiation_data: NegotiationData = pickle.load(negotiation_data_file)
+        else:
+            # print("empty NegotiationData")
+            self.create_empty_negotiation_data(opponent_name=opponent_name)
+
+    def initialize_persistent_data(self, opponent_name):
+        self._persistent_path = os.path.join(self._storage_dir, f"persistent_data_{opponent_name}.log")
+        if self._persistent_path is not None and os.path.exists(self._persistent_path):
+            # json load
+            # print("non-empty PersistentData")
+            with open(self._persistent_path, "rb") as persistent_file:
+                self._persistent_data: PersistentData = pickle.load(persistent_file)
+            self._avg_utility = self._persistent_data.get_avg_utility()
+            self._std_utility = self._persistent_data.get_std_utility()
+            print("avg: {} std: {}".format(self._avg_utility, self._std_utility * self._std_utility))
+        else:
+            # print("empty PersistentData")
+            self._persistent_data: PersistentData = PersistentData()
+
+    @classmethod
+    def parse_opponent_name(cls, full_opponent_name):
+        agent_index = full_opponent_name.rindex("_")
+        if agent_index != -1:
+            return full_opponent_name[:agent_index]
+        return None
+
+    def initialize_storage(self, opponent_name):
+        self.initialize_persistent_data(opponent_name=opponent_name)
+        self.initialize_negotiation_data(opponent_name=opponent_name)
 
     # Override
     def notifyChange(self, info: Inform):
         # self.getReporter().log(logging.INFO, "received info:" + str(info))
         if isinstance(info, Settings):
+            self.getReporter().log(logging.WARNING, "SETTINGS")
             settings: Settings = cast(Settings, info)
+            self._settings = settings
             self._me: PartyId = settings.getID()
             self._progress = settings.getProgress()
-            self._protocol = settings.getProtocol().getURI().getPath()
+            self._protocol = str(settings.getProtocol().getURI())
             self._parameters = settings.getParameters()
-
-            if "persistentstate" in self._parameters.getParameters():
-                # TODO: fix persistent path initialization
-                persistent_state_path = self._parameters.get('persistentstate')
-                if isinstance(persistent_state_path, str):
-                    persistent_state_path_str = cast(str, persistent_state_path)
-                    path_persistent_state_uuid = uuid.UUID(persistent_state_path_str)
-                    self._persistent_path = FileLocation(path_persistent_state_uuid).getFile()
-                else:
-                    print("persistent_state in not string")
-                # print("persistent_space:{}".format(self._persistent_path))
-            if self._persistent_path is not None and os.path.exists(self._persistent_path):
-                # json load
-                self._persistent_data: PersistentData = json.loads(self._persistent_path)
-                self._avg_utility = self._persistent_data.get_avg_utility()
-                self._std_utility = self._persistent_data.get_std_utility()
-                print("avg: {} std: {}".format(self._avg_utility, self._std_utility * self._std_utility))
-            else:
-                self._persistent_data = PersistentData()
-            # TODO: add negotiondata
             if "storage_dir" in self._parameters.getParameters():
+                self.getReporter().log(logging.INFO, "storage_dir is on parameters")
                 self._storage_dir = self._parameters.get("storage_dir")
-                self._data_paths_raw = self._parameters.get("storage_dir")
-                self._data_paths = []
-                if isinstance(self._data_paths_raw, List):
-                    for data_path in self._data_paths_raw:
-                        self._data_paths.append(FileLocation(uuid.UUID(data_path)).getFile())
+
+            try:
+                self._profile_interface: ProfileInterface = ProfileConnectionFactory.create(
+                    settings.getProfile().getURI(), self.getReporter()
+                )
+                self._profile = self._profile_interface.getProfile()
+                self._domain = self._profile.getDomain()
+
+                if self._freq_map is None:
+                    self._freq_map = defaultdict()
                 else:
-                    self.getReporter().log(logging.INFO, "negotiationdata param is not a list")
+                    self._freq_map.clear()
 
-            if "Learn" == self._protocol:
-                # learning
-                self.learn()
-                self.getConnection().send(LearningDone(self._me))
-            else:
-                # We are in the negotiation step.
-                # Obtain all of the issues in the current negotiation domain
-                self._negotiation_data = NegotiationData()
-                try:
-                    self._profile_interface: ProfileInterface = ProfileConnectionFactory.create(
-                        settings.getProfile().getURI(), self.getReporter()
-                    )
-                    self._profile = self._profile_interface.getProfile()
-                    self._domain = self._profile.getDomain()
+                issues = self._domain.getIssues()
+                for issue in issues:
+                    p = Pair()
 
-                    if self._freq_map is None:
-                        self._freq_map = defaultdict()
-                    else:
-                        self._freq_map.clear()
+                    vs = self._domain.getValues(issue)
+                    if isinstance(vs.get(0), DiscreteValue.DiscreteValue):
+                        p.value_type = 0
+                    elif isinstance(vs.get(0), NumberValue.NumberValue):
+                        p.value_type = 1
+                    for v in vs:
+                        vstr = self.value_to_str(v, p)
+                        p.vlist[vstr] = 0
+                    self._freq_map[issue] = p
 
-                    issues = self._domain.getIssues()
-                    for issue in issues:
-                        p = Pair()
+                self._utility_space = self._profile_interface.getProfile()
+                self._all_bid_list: AllBidsList = AllBidsList(domain=self._domain)
+                r = self._max_bid_space_iteration > self._all_bid_list.size()
+                if r is True:
+                    mx_util = 0
+                    bid_space_size = self._all_bid_list.size()
+                    for i in range(bid_space_size):
+                        bid = self._all_bid_list.get(i)
+                        candidate = self._utility_space.getUtility(bid=bid)
+                        if candidate > mx_util:
+                            mx_util = candidate
+                            self._optimal_bid = bid
+                else:
+                    mx_util = 0
+                    bid_space_size = self._all_bid_list.size()
+                    for attempt in range(self._max_bid_space_iteration):
+                        i = random.randint(0, bid_space_size)
+                        bid = self._all_bid_list.get(i)
+                        candidate = self._utility_space.getUtility(bid=bid)
+                        if candidate > mx_util:
+                            mx_util = candidate
+                            self._optimal_bid = bid
 
-                        vs = self._domain.getValues(issue)
-                        if isinstance(vs.get(0), DiscreteValue.DiscreteValue):
-                            p.value_type = 0
-                        elif isinstance(vs.get(0), NumberValue.NumberValue):
-                            p.value_type = 1
-                        for v in vs:
-                            vstr = self.value_to_str(v, p)
-                            p.vlist[vstr] = 0
-                        self._freq_map[issue] = p
-
-                    self._utility_space = self._profile_interface.getProfile()
-                    self._all_bid_list: AllBidsList = AllBidsList(domain=self._domain)
-                    r = self._max_bid_space_iteration > self._all_bid_list.size()
-                    if r is True:
-                        mx_util = 0
-                        bid_space_size = self._all_bid_list.size()
-                        for i in range(bid_space_size):
-                            bid = self._all_bid_list.get(i)
-                            candidate = self._utility_space.getUtility(bid=bid)
-                            if candidate > mx_util:
-                                mx_util = candidate
-                                self._optimal_bid = bid
-                    else:
-                        mx_util = 0
-                        bid_space_size = self._all_bid_list.size()
-                        for attempt in range(self._max_bid_space_iteration):
-                            i = random.randint(0, bid_space_size)
-                            bid = self._all_bid_list.get(i)
-                            candidate = self._utility_space.getUtility(bid=bid)
-                            if candidate > mx_util:
-                                mx_util = candidate
-                                self._optimal_bid = bid
-
-                except Exception as e:
-                    print("error in settings:{}", e)
-                    self.getReporter().log(logging.WARNING, "Error in {}".format(str(e)))
+            except Exception as e:
+                print("error in settings:{}", e)
+                self.getReporter().log(logging.WARNING, "Error in {}".format(str(e)))
 
         elif isinstance(info, ActionDone):
+            self.getReporter().log(logging.WARNING, "ActionDone")
             # TODO: initalizie with negotiaiondata
             action: Action = cast(ActionDone, info).getAction()
             if self._me is not None and self._me != action.getActor():
-                if self._opponent_name is None:
-                    full_opponent_name = action.getActor().getName()
-                    agent_index = full_opponent_name.rindex("_")
-                    if agent_index != -1:
-                        # which means index found
-                        self._opponent_name = full_opponent_name[:agent_index]
-                        self._negotiation_data.set_opponent_name(self._opponent_name)
-                        self.op_threshold = self._persistent_data.get_smooth_threshold_over_time(self._opponent_name
-                                                                                                 )
-                        if self.op_threshold is not None:
-                            for i in range(1, self.t_split):
-                                self.op_threshold[i] = self.op_threshold[i] if self.op_threshold[i] > 0 else \
-                                    self.op_threshold[i - 1]
-                        self.alpha = self._persistent_data.get_opponent_alpha(self._opponent_name)
-                        self.alpha = self.alpha if self.alpha > 0.0 else self.default_alpha
+                opponent_name = self.parse_opponent_name(full_opponent_name=action.getActor().getName())
+                if self._opponent_name is None and opponent_name is not None:
+                    self.initialize_storage(opponent_name)
+                    # which means index found
+                    self._opponent_name = opponent_name
+                    self._negotiation_data.set_opponent_name(self._opponent_name)
+
+                    self.op_threshold = self._persistent_data.get_smooth_threshold_over_time(self._opponent_name
+                                                                                             )
+                    if self.op_threshold is not None:
+                        for i in range(1, self.t_split):
+                            self.op_threshold[i] = self.op_threshold[i] if self.op_threshold[i] > 0 else \
+                                self.op_threshold[i - 1]
+                    self.alpha = self._persistent_data.get_opponent_alpha(self._opponent_name)
+                    self.alpha = self.alpha if self.alpha > 0.0 else self.default_alpha
                 self.process_action(action)
 
         elif isinstance(info, YourTurn):
             # This is a super party
+            self.getReporter().log(logging.WARNING, "YourTurn")
             if isinstance(self._progress, ProgressRounds):
                 self._progress = self._progress.advance()
+            self.getReporter().log(logging.WARNING,
+                                   "is NULL:{}:{}".format(self._persistent_data is None, self._opponent_name))
+
+            # self.initialize_storage(self._opponent_name)
             action = self._my_turn()
             val(self.getConnection()).send(action)
 
         elif isinstance(info, Finished):
+            self.getReporter().log(logging.WARNING, "Finished")
             self.terminate()
+            # self.getReporter().log(logging.WARNING, "Finished " + str(info))
             # TODO:: handle NEGOTIATIONDATA
             finished_info = cast(Finished, info)
             agreements: Agreements = finished_info.getAgreements()
             self.process_agreements(agreements)
-            if self._data_paths is not None and len(self._data_paths) != 0 and self._negotiation_data is not None:
-                with open(self._data_paths[0]) as pers_file:
-                    json.dump(self._negotiation_data, pers_file)
+            self.learn()
+            print("datapath len:{}".format(len(self._negotiation_data_paths)))
+            if self._negotiation_data_paths is not None and len(
+                    self._negotiation_data_paths) > 0 and self._negotiation_data is not None:
+                for negotiation_path in self._negotiation_data_paths:
+                    try:
+                        with open(negotiation_path, "wb") as negotiation_file:
+                            pickle.dump(self._negotiation_data, negotiation_file)
 
+                    except Exception as e:
+                        self.getReporter().log(logging.WARNING, "Error in {}".format(str(e)))
             self.terminate()
         else:
             self.getReporter().log(
@@ -338,7 +366,7 @@ class SuperAgent(DefaultParty):
         self._util_threshold = max_value - (
                 max_value - 0.55 * self._avg_utility - 0.4 * avg_max_utility + 0.5 * pow(self._std_utility, 2)) * \
                                (math.exp(self.alpha * self._progress.get(get_ms_current_time())) - 1) / (math.exp(
-                                   self.alpha) - 1)
+            self.alpha) - 1)
         if self._util_threshold < self._min_utility:
             self._util_threshold = self._min_utility
 
@@ -390,6 +418,9 @@ class SuperAgent(DefaultParty):
 
     def _my_turn(self):
         # save average of the last avgSplit offers (only when frequency table is stabilized)
+        if self._opponent_name is None:
+            return Offer(self._me, self._optimal_bid)
+
         if self.is_near_negotiation_end():
             index = int(
                 (self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
@@ -404,18 +435,22 @@ class SuperAgent(DefaultParty):
 
     def learn(self):
         self.getReporter().log(logging.INFO, "party is learning")
-        for path in self._data_paths:
+        # probably have to shift to self._negotiation_data_paths
+        for path in self._negotiation_data_paths:
             try:
-                with open(path) as f:
-                    nego_data = json.load(f)
-                    self._persistent_data.update(nego_data)
+                with open(path, "rb") as f:
+                    nego_data = pickle.load(f)
+                self._persistent_data.update(nego_data)
             except:
-                raise Exception(f"Negotiation data path {0} does not exist".format(path))
+                print("a")
+                # raise Exception(f"Negotiation data path {path} does not exist")
         try:
-            with open(self._persistent_path) as pers_file:
-                json.dump(self._persistent_data, pers_file)
-        except:
-            raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))
+            with open(self._persistent_path, "wb") as pers_file:
+                pickle.dump(self._persistent_data, pers_file)
+                # json.dump(self._persistent_data, pers_file)
+        except Exception as e:
+            print("error in persistent path dump:{}", str(e))
+            # raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))
 
     def process_agreements(self, agreements: Agreements):
         # Check if we reached an agreement (walking away or passing the deadline
