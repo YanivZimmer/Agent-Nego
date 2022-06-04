@@ -91,11 +91,13 @@ class SuperAgent(DefaultParty):
         self.op_sum = [0.0] * self.t_split
         self.op_threshold = [0.0] * self.t_split
         self.t_phase = 0.5
-        self.t_social_welfare = 0.995
+        self.t_social_welfare = 0.997
 
         self._max_bid_space_iteration = 50000
         self._optimal_bid: Bid = None
         self._all_bid_list: AllBidsList = None
+        self._sorted_bid_list: List = None
+        self._len_sorted_bid_list: int = 0
         self._storage_dir: str = None
 
     def create_empty_negotiation_data(self, opponent_name):
@@ -122,9 +124,7 @@ class SuperAgent(DefaultParty):
                 self._persistent_data: PersistentData = pickle.load(persistent_file)
             self._avg_utility = self._persistent_data.get_avg_utility()
             self._std_utility = self._persistent_data.get_std_utility()
-            print("avg: {} std: {}".format(self._avg_utility, self._std_utility * self._std_utility))
         else:
-            # print("empty PersistentData")
             self._persistent_data: PersistentData = PersistentData()
 
     @classmethod
@@ -135,8 +135,12 @@ class SuperAgent(DefaultParty):
         return None
 
     def initialize_storage(self, opponent_name):
-        self.initialize_persistent_data(opponent_name=opponent_name)
-        self.initialize_negotiation_data(opponent_name=opponent_name)
+        if self._storage_dir is not None:
+            self.initialize_persistent_data(opponent_name=opponent_name)
+            self.initialize_negotiation_data(opponent_name=opponent_name)
+        else:
+            self.create_empty_negotiation_data(opponent_name=opponent_name)
+            self._persistent_data: PersistentData = PersistentData()
 
     # Override
     def notifyChange(self, info: Inform):
@@ -168,7 +172,6 @@ class SuperAgent(DefaultParty):
                 issues = self._domain.getIssues()
                 for issue in issues:
                     p = Pair()
-
                     vs = self._domain.getValues(issue)
                     if isinstance(vs.get(0), DiscreteValue.DiscreteValue):
                         p.value_type = 0
@@ -181,26 +184,11 @@ class SuperAgent(DefaultParty):
 
                 self._utility_space = self._profile_interface.getProfile()
                 self._all_bid_list: AllBidsList = AllBidsList(domain=self._domain)
-                r = self._max_bid_space_iteration > self._all_bid_list.size()
-                if r is True:
-                    mx_util = 0
-                    bid_space_size = self._all_bid_list.size()
-                    for i in range(bid_space_size):
-                        bid = self._all_bid_list.get(i)
-                        candidate = self._utility_space.getUtility(bid=bid)
-                        if candidate > mx_util:
-                            mx_util = candidate
-                            self._optimal_bid = bid
-                else:
-                    mx_util = 0
-                    bid_space_size = self._all_bid_list.size()
-                    for attempt in range(self._max_bid_space_iteration):
-                        i = random.randint(0, bid_space_size)
-                        bid = self._all_bid_list.get(i)
-                        candidate = self._utility_space.getUtility(bid=bid)
-                        if candidate > mx_util:
-                            mx_util = candidate
-                            self._optimal_bid = bid
+                self._sorted_bid_list = sorted(AllBidsList(domain=self._domain),
+                                               key=self._utility_space.getUtility, reverse=True)
+                self._len_sorted_bid_list = len(self._sorted_bid_list)
+                # after sort of bid list the optimal bid is in the first element
+                self._optimal_bid = self._sorted_bid_list[0]
 
             except Exception as e:
                 print("error in settings:{}", e)
@@ -238,22 +226,17 @@ class SuperAgent(DefaultParty):
             val(self.getConnection()).send(action)
 
         elif isinstance(info, Finished):
-            # self.getReporter().log(logging.WARNING, "Finished")
-            self.terminate()
-            # self.getReporter().log(logging.WARNING, "Finished " + str(info))
             # TODO:: handle NEGOTIATIONDATA
             finished_info = cast(Finished, info)
             agreements: Agreements = finished_info.getAgreements()
             self.process_agreements(agreements)
             self.learn()
-            print("datapath len:{}".format(len(self._negotiation_data_paths)))
             if self._negotiation_data_paths is not None and len(
                     self._negotiation_data_paths) > 0 and self._negotiation_data is not None:
                 for negotiation_path in self._negotiation_data_paths:
                     try:
                         with open(negotiation_path, "wb") as negotiation_file:
                             pickle.dump(self._negotiation_data, negotiation_file)
-
                     except Exception as e:
                         self.getReporter().log(logging.WARNING, "Error in {}".format(str(e)))
             self.terminate()
@@ -355,7 +338,7 @@ class SuperAgent(DefaultParty):
         return self._utility_space.getUtility(bid)
 
     def calc_social_welfare(self, bid: Bid):
-        return 0.6 * self.calc_utility(bid) + math.fabs(1 - 0.6) * self.calc_op_value(bid)
+        return 0.8 * float(self.calc_utility(bid)) + math.fabs(1 - 0.8) * float(self.calc_op_value(bid))
 
     def cmp_social_welfare(self, first_bid, second_bid):
         return self.calc_social_welfare(first_bid) >= self.calc_social_welfare(second_bid)
@@ -373,43 +356,45 @@ class SuperAgent(DefaultParty):
             self.alpha) - 1)
         if self._util_threshold < self._min_utility:
             self._util_threshold = self._min_utility
-
         return float(self.calc_utility(bid)) >= self._util_threshold
 
-    def on_negotiation_social_welfare(self):
-        bid: Bid = None
-        for attempt in range(5000):
-            if self.is_good(bid):
-                break
-            idx = random.randint(0, self._all_bid_list.size())
-            bid = self._all_bid_list.get(idx)
-        if not self.is_good(bid):
-            bid = self._optimal_bid
-        return bid
+    def first_is_good_idx(self):
+        for i in range(len(self._sorted_bid_list)):
+            if not self.is_good(self._sorted_bid_list[i]):
+                return i
+        return len(self._sorted_bid_list) - 1
+
+    def filter_only_op_good(self, bid_list):
+        bid_good_for_both = []
+        for bid in bid_list:
+            if self.is_op_good(bid):
+                bid_good_for_both.append(bid)
+        return bid_good_for_both
+
     def on_negotiation_near_end(self):
-        bid: Bid = None
-        for attempt in range(1000):
-            if self.is_good(bid):
-                break
-            idx = random.randint(0, self._all_bid_list.size())
-            bid = self._all_bid_list.get(idx)
-        if not self.is_good(bid):
-            bid = self._optimal_bid
-        return bid
+        slice_idx = self.first_is_good_idx()
+        # print("A:{}".format(self._len_sorted_bid_list))
+        end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
+        idx = random.randint(0, end_slice)
+        if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self._best_offer_bid):
+            return self._best_offer_bid
+        return self._sorted_bid_list[idx]
 
     def on_negotiation_continues(self):
         bid: Bid = None
-        for attempt in range(1000):
-            if self._optimal_bid is None:
-                self.getReporter().log(logging.INFO, "optimal bid is none")
-            if bid == self._optimal_bid or self.is_good(bid) or self.is_op_good(bid):
+
+        slice_idx = self.first_is_good_idx()
+        end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
+        for i in range(end_slice, 0, -1):
+            tmp_bid = self._sorted_bid_list[i]
+            if tmp_bid == self._optimal_bid or self.is_good(tmp_bid) or self.is_op_good(tmp_bid):
+                bid = tmp_bid
                 break
-            idx = random.randint(0, self._all_bid_list.size())
-            bid = self._all_bid_list.get(idx)
         if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self._best_offer_bid):
             bid = self._best_offer_bid
         if not self.is_good(bid):
-            bid = self._optimal_bid
+            idx = random.randint(0, slice_idx)
+            bid = self._sorted_bid_list[idx]
         return bid
 
     def cmp_utility(self, first_bid, second_bid):
@@ -469,16 +454,16 @@ class SuperAgent(DefaultParty):
     def process_agreements(self, agreements: Agreements):
         # Check if we reached an agreement (walking away or passing the deadline
         # results in no agreement)
-        self.getReporter().log(logging.INFO, "Length of agreements: {} :{}".format(len(agreements.getMap().items()),agreements.getMap()))
+        self.getReporter().log(logging.INFO, "Length of agreements: {} :{}".format(len(agreements.getMap().items()),
+                                                                                   agreements.getMap()))
         if len(agreements.getMap().items()) > 0:
             # Get the bid that is agreed upon and add it's value to our negotiation data
-            for agreement in agreements.getMap().values():
-                # agreement: Bid = agreements.getMap().values().__iter__().__next__()
-                self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
-                self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
-                self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
-                self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self.calc_utility(agreement)))
-                self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:{}".format(self.calc_op_value(agreement)))
+            agreement: Bid = agreements.getMap().values().__iter__().__next__()
+            self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
+            self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
+            self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
+            self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self.calc_utility(agreement)))
+            self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:{}".format(self.calc_op_value(agreement)))
         else:
             if self._best_offer_bid is not None:
                 self._negotiation_data.add_agreement_util(float(self.calc_utility(self._best_offer_bid)))
