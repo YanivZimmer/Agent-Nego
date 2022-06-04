@@ -91,6 +91,7 @@ class SuperAgent(DefaultParty):
         self.op_sum = [0.0] * self.t_split
         self.op_threshold = [0.0] * self.t_split
         self.t_phase = 0.5
+        self.t_social_welfare = 0.995
 
         self._max_bid_space_iteration = 50000
         self._optimal_bid: Bid = None
@@ -141,7 +142,7 @@ class SuperAgent(DefaultParty):
     def notifyChange(self, info: Inform):
         # self.getReporter().log(logging.INFO, "received info:" + str(info))
         if isinstance(info, Settings):
-            self.getReporter().log(logging.WARNING, "SETTINGS")
+            # self.getReporter().log(logging.WARNING, "SETTINGS")
             settings: Settings = cast(Settings, info)
             self._settings = settings
             self._me: PartyId = settings.getID()
@@ -206,7 +207,7 @@ class SuperAgent(DefaultParty):
                 self.getReporter().log(logging.WARNING, "Error in {}".format(str(e)))
 
         elif isinstance(info, ActionDone):
-            self.getReporter().log(logging.WARNING, "ActionDone")
+            # self.getReporter().log(logging.WARNING, "ActionDone")
             # TODO: initalizie with negotiaiondata
             action: Action = cast(ActionDone, info).getAction()
             if self._me is not None and self._me != action.getActor():
@@ -229,18 +230,15 @@ class SuperAgent(DefaultParty):
 
         elif isinstance(info, YourTurn):
             # This is a super party
-            self.getReporter().log(logging.WARNING, "YourTurn")
+            # self.getReporter().log(logging.WARNING, "YourTurn")
             if isinstance(self._progress, ProgressRounds):
                 self._progress = self._progress.advance()
-            self.getReporter().log(logging.WARNING,
-                                   "is NULL:{}:{}".format(self._persistent_data is None, self._opponent_name))
-
             # self.initialize_storage(self._opponent_name)
             action = self._my_turn()
             val(self.getConnection()).send(action)
 
         elif isinstance(info, Finished):
-            self.getReporter().log(logging.WARNING, "Finished")
+            # self.getReporter().log(logging.WARNING, "Finished")
             self.terminate()
             # self.getReporter().log(logging.WARNING, "Finished " + str(info))
             # TODO:: handle NEGOTIATIONDATA
@@ -347,14 +345,20 @@ class SuperAgent(DefaultParty):
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
     def is_near_negotiation_end(self):
-        # self.getReporter().log(logging.WARNING,
-        #                        "is nego near end:{} :{}".format(self._progress.get(get_ms_current_time()),
-        #                                                         self.t_phase))
         return self._progress.get(time() * 1000) > self.t_phase
+
+    def is_social_welfare_time(self):
+        return self._progress.get(time() * 1000) > self.t_social_welfare
 
     def calc_utility(self, bid):
         # get utility from utility space
         return self._utility_space.getUtility(bid)
+
+    def calc_social_welfare(self, bid: Bid):
+        return 0.6 * self.calc_utility(bid) + math.fabs(1 - 0.6) * self.calc_op_value(bid)
+
+    def cmp_social_welfare(self, first_bid, second_bid):
+        return self.calc_social_welfare(first_bid) >= self.calc_social_welfare(second_bid)
 
     def is_good(self, bid):
         if bid is None:
@@ -372,6 +376,16 @@ class SuperAgent(DefaultParty):
 
         return float(self.calc_utility(bid)) >= self._util_threshold
 
+    def on_negotiation_social_welfare(self):
+        bid: Bid = None
+        for attempt in range(5000):
+            if self.is_good(bid):
+                break
+            idx = random.randint(0, self._all_bid_list.size())
+            bid = self._all_bid_list.get(idx)
+        if not self.is_good(bid):
+            bid = self._optimal_bid
+        return bid
     def on_negotiation_near_end(self):
         bid: Bid = None
         for attempt in range(1000):
@@ -408,6 +422,8 @@ class SuperAgent(DefaultParty):
             self._best_offer_bid = self._last_received_bid
         elif self.cmp_utility(self._last_received_bid, self._best_offer_bid):
             self._best_offer_bid = self._last_received_bid
+        # if self.is_social_welfare_time():
+        #     self.on_negotiation_social_welfare()
         if self.is_near_negotiation_end():
             bid = self.on_negotiation_near_end()
         else:
@@ -441,29 +457,28 @@ class SuperAgent(DefaultParty):
                 with open(path, "rb") as f:
                     nego_data = pickle.load(f)
                 self._persistent_data.update(nego_data)
-            except:
-                print("a")
-                # raise Exception(f"Negotiation data path {path} does not exist")
+            except Exception as e:
+                print("error in learn function - persistent data update, error:{}", str(e))
+
         try:
             with open(self._persistent_path, "wb") as pers_file:
                 pickle.dump(self._persistent_data, pers_file)
-                # json.dump(self._persistent_data, pers_file)
         except Exception as e:
             print("error in persistent path dump:{}", str(e))
-            # raise Exception(f"Failed to write persistent data to path: {0}".format(self._persistent_path))
 
     def process_agreements(self, agreements: Agreements):
         # Check if we reached an agreement (walking away or passing the deadline
         # results in no agreement)
+        self.getReporter().log(logging.INFO, "Length of agreements: {} :{}".format(len(agreements.getMap().items()),agreements.getMap()))
         if len(agreements.getMap().items()) > 0:
             # Get the bid that is agreed upon and add it's value to our negotiation data
-            agreement: Bid = agreements.getMap().values().__iter__().__next__()
-            self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
-            self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
-
-            self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
-            self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self._utility_space.getUtility(agreement)))
-            self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:".format(self.calc_op_value(agreement)))
+            for agreement in agreements.getMap().values():
+                # agreement: Bid = agreements.getMap().values().__iter__().__next__()
+                self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
+                self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
+                self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
+                self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self.calc_utility(agreement)))
+                self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:{}".format(self.calc_op_value(agreement)))
         else:
             if self._best_offer_bid is not None:
                 self._negotiation_data.add_agreement_util(float(self.calc_utility(self._best_offer_bid)))
@@ -476,4 +491,4 @@ class SuperAgent(DefaultParty):
         try:
             self._negotiation_data.update_opponent_offers(self.op_sum, self.op_counter)
         except Exception as e:
-            self.getReporter().log(logging.INFO, "Error in process_agreements")
+            self.getReporter().log(logging.INFO, "Error in process_agreements,{}".format(str(e)))
