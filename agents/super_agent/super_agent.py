@@ -32,10 +32,10 @@ from geniusweb.profileconnection.ProfileConnectionFactory import (
 )
 from geniusweb.progress.ProgressRounds import ProgressRounds
 
-from agents.super_agent.utils.utils import get_ms_current_time
-from agents.super_agent.utils.pair import Pair
-from agents.super_agent.utils.persistent_data import PersistentData
-from agents.super_agent.utils.negotiation_data import NegotiationData
+from .utils.utils import get_ms_current_time
+from .utils.pair import Pair
+from .utils.persistent_data import PersistentData
+from .utils.negotiation_data import NegotiationData
 
 
 class SuperAgent(DefaultParty):
@@ -78,7 +78,7 @@ class SuperAgent(DefaultParty):
         self.op_counter = [0] * self.t_split
         self.op_sum = [0.0] * self.t_split
         self.op_threshold = [0.0] * self.t_split
-        self.t_phase = 0.5
+        self.t_phase = 0.2
         self.t_social_welfare = 0.997
 
         self._max_bid_space_iteration = 50000
@@ -361,7 +361,6 @@ class SuperAgent(DefaultParty):
 
     def on_negotiation_near_end(self):
         slice_idx = self.first_is_good_idx()
-        # print("A:{}".format(self._len_sorted_bid_list))
         end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
         idx = random.randint(0, end_slice)
         if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self._best_offer_bid):
