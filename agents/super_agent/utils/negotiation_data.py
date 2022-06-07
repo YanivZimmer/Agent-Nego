@@ -4,13 +4,16 @@ from typing import List
 class NegotiationData:
     tSplit: int = 40
 
-    def __init__(self):
-        self._max_received_util: float = 0.0
-        self._agreement_util: float = 0.0
-        self._opponent_name: str = ''
-
-        self._opponent_util: float = 0.0
-        self._opponent_util_by_time: List[float] = [0.0] * NegotiationData.tSplit
+    def __init__(self, max_received_util=0.0, agreement_util=0.0, opponent_name='', opponent_util=0.0,
+                 opponent_util_by_time=None):
+        self._max_received_util: float = max_received_util
+        self._agreement_util: float = agreement_util
+        self._opponent_name: str = opponent_name
+        self._opponent_util: float = opponent_util
+        if opponent_util_by_time is None:
+            self._opponent_util_by_time: List[float] = [0.0] * NegotiationData.tSplit
+        else:
+            self._opponent_util_by_time: List[float] = opponent_util_by_time
 
     def add_agreement_util(self, agreement_util: float):
         self._agreement_util = agreement_util
