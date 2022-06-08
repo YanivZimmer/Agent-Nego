@@ -383,8 +383,13 @@ class SuperAgent(DefaultParty):
                     return self._sorted_bid_list[idx]
             except StopIteration:
                 pass
-        # max utility possible
-        return self._sorted_bid_list[good_bid]
+        # last try we give him the best possible suggestion we have
+        bid = max(self._sorted_bid_list[0:good_bid], key=self.calc_op_value)
+        if isinstance(bid, Bid):
+            return bid
+        else:
+            self.getReporter().log(logging.INFO, "type: {}".format(type(bid)))
+            return self._sorted_bid_list[good_bid]
 
     def on_negotiation_continues(self):
         bid: Bid = None
