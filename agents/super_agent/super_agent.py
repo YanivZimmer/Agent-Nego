@@ -352,6 +352,16 @@ class SuperAgent(DefaultParty):
             self._util_threshold = self._min_utility
         return float(self.calc_utility(bid)) >= self._util_threshold
 
+    def first_better_then(self, utility):
+        idx = None
+        try:
+            idx = next(len(self._sorted_bid_list) - 1 - x for x, val in enumerate(self._sorted_bid_list[-1::-1]) if
+                               self._utility_space.getUtility(val) > utility)
+        except StopIteration:
+            pass
+        finally:
+            return idx
+
     def first_is_good_idx(self):
         for i in range(len(self._sorted_bid_list)):
             if not self.is_good(self._sorted_bid_list[i]):
@@ -375,20 +385,19 @@ class SuperAgent(DefaultParty):
         if not avg_max_util:
             return self._best_offer_bid
         if self._progress.get(get_ms_current_time()) <= 0.99:
-            try:
-                idx = next(len(self._sorted_bid_list) - 1 - x for x, val in enumerate(self._sorted_bid_list[-1::-1]) if
-                           self._utility_space.getUtility(val) > avg_max_util)
+            idx = self.first_better_then(avg_max_util)
+            if idx != None:
                 self.getReporter().log(logging.INFO, "avg_max_util: {0}, bid_utility: {1}".format(avg_max_util, self._utility_space.getUtility(self._sorted_bid_list[idx])))
                 if self.is_good(self._sorted_bid_list[idx]):
                     return self._sorted_bid_list[idx]
-            except StopIteration:
-                pass
+
         # last try we give him the best possible suggestion we have
         bid = max(self._sorted_bid_list[0:good_bid], key=self.calc_op_value)
         if isinstance(bid, Bid):
+            self.getReporter().log(logging.INFO, "chosen bid utility: {}".format(self._utility_space.getUtility(bid)))
             return bid
         else:
-            self.getReporter().log(logging.INFO, "type: {}".format(type(bid)))
+            self.getReporter().log(logging.INFO, "wrong type: {}".format(type(bid)))
             return self._sorted_bid_list[good_bid]
 
     def on_negotiation_continues(self):
@@ -401,8 +410,6 @@ class SuperAgent(DefaultParty):
             if tmp_bid == self._optimal_bid or self.is_op_good(tmp_bid):
                 bid = tmp_bid
                 break
-        if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
-            bid = self._best_offer_bid
         if bid is None or not self.is_good(bid):
             idx = random.randint(0, slice_idx)
             bid = self._sorted_bid_list[idx]
@@ -438,7 +445,11 @@ class SuperAgent(DefaultParty):
                 (self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
             self.op_sum[index] += self.calc_op_value(self._last_received_bid)
             self.op_counter[index] += 1
-        if self.is_good(self._last_received_bid) or self.is_last_turn():
+        if self.is_last_turn():
+            avg_max_util = self._persistent_data.get_avg_max_utility(self._opponent_name)
+            if avg_max_util and self._utility_space.getUtility(self._last_received_bid) > avg_max_util - 0.05:
+                action = Accept(self._me, self._last_received_bid)
+        if self.is_good(self._last_received_bid):
             # if the last bid is good - accept it.
             action = Accept(self._me, self._last_received_bid)
         else:
@@ -472,7 +483,6 @@ class SuperAgent(DefaultParty):
             agreement: Bid = agreements.getMap().values().__iter__().__next__()
             self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
             self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
-            self.getReporter().log(logging.INFO, "Agreement in time: {} percent".format(self._progress.get(get_ms_current_time())))
             self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
             self.getReporter().log(logging.INFO, "EXP OPPONENT THRESHOLD: {}".format(self.calc_op_threshold()))
             self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self.calc_utility(agreement)))
