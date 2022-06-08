@@ -305,13 +305,16 @@ class SuperAgent(DefaultParty):
             sum_of_weight = sum_of_weight + is_weight[k]
         return value / sum_of_weight
 
+    def calc_op_threshold(self):
+        index = int(
+            ((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase)))
+        return max(1 - 2 * self.op_threshold[index], 0.2) if self.op_threshold is not None else 0.6
+
     def is_op_good(self, bid: Bid):
         if bid is None:
             return False
         value = self.calc_op_value(bid=bid)
-        index = int(
-            ((self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase)))
-        op_threshold = max(1 - 2 * self.op_threshold[index], 0.2) if self.op_threshold is not None else 0.6
+        op_threshold = self.calc_op_threshold()
         return value > op_threshold
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
@@ -358,10 +361,30 @@ class SuperAgent(DefaultParty):
     def on_negotiation_near_end(self):
         slice_idx = self.first_is_good_idx()
         end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
-        idx = random.randint(0, slice_idx)
-        if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
-            return self._best_offer_bid
+        idx = random.randint(0, end_slice)
+        if self._progress.get(get_ms_current_time()) >= 0.95:
+            return self.last_bids(idx)
         return self._sorted_bid_list[idx]
+
+    def last_bids(self, good_bid : int):
+        # this session's max utility got
+        if self._progress.get(get_ms_current_time()) <= 0.97 and self.is_good(self._best_offer_bid):
+            return self._best_offer_bid
+        # all session's max utility got
+        avg_max_util = self._persistent_data.get_avg_max_utility(self._opponent_name)
+        if not avg_max_util:
+            return self._best_offer_bid
+        if self._progress.get(get_ms_current_time()) <= 0.99:
+            try:
+                idx = next(len(self._sorted_bid_list) - 1 - x for x, val in enumerate(self._sorted_bid_list[-1::-1]) if
+                           self._utility_space.getUtility(val) > avg_max_util)
+                self.getReporter().log(logging.INFO, "avg_max_util: {0}, bid_utility: {1}".format(avg_max_util, self._utility_space.getUtility(self._sorted_bid_list[idx])))
+                if self.is_good(self._sorted_bid_list[idx]):
+                    return self._sorted_bid_list[idx]
+            except StopIteration:
+                pass
+        # max utility possible
+        return self._sorted_bid_list[good_bid]
 
     def on_negotiation_continues(self):
         bid: Bid = None
@@ -437,8 +460,8 @@ class SuperAgent(DefaultParty):
     def process_agreements(self, agreements: Agreements):
         # Check if we reached an agreement (walking away or passing the deadline
         # results in no agreement)
-        self.getReporter().log(logging.INFO, "Length of agreements: {} :{}".format(len(agreements.getMap().items()),
-                                                                                   agreements.getMap()))
+        self.getReporter().log(logging.INFO, "OPPONENT NAME: {}".format(self._opponent_name))
+        #self.getReporter().log(logging.INFO, "Length of agreements: {} :{}".format(len(agreements.getMap().items()),agreements.getMap()))
         if len(agreements.getMap().items()) > 0:
             # Get the bid that is agreed upon and add it's value to our negotiation data
             agreement: Bid = agreements.getMap().values().__iter__().__next__()
@@ -446,6 +469,7 @@ class SuperAgent(DefaultParty):
             self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
             self.getReporter().log(logging.INFO, "Agreement in time: {} percent".format(self._progress.get(get_ms_current_time())))
             self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
+            self.getReporter().log(logging.INFO, "EXP OPPONENT THRESHOLD: {}".format(self.calc_op_threshold()))
             self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self.calc_utility(agreement)))
             self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:{}".format(self.calc_op_value(agreement)))
         else:
@@ -454,6 +478,8 @@ class SuperAgent(DefaultParty):
             self.getReporter().log(logging.INFO,
                                    "!!!!!!!!!!!!!! NO AGREEMENT !!!!!!!!!!!!!!! /// MY THRESHOLD: {}".format(
                                        self._util_threshold))
+            self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
+            self.getReporter().log(logging.INFO, "EXP OPPONENT THRESHOLD: {}".format(self.calc_op_threshold()))
 
         self.getReporter().log(logging.INFO, "TIME OF AGREEMENT: {}".format(self._progress.get(get_ms_current_time())))
         # update the opponent offers map, regardless of achieving agreement or not
