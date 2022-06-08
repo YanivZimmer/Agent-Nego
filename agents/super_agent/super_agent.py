@@ -315,6 +315,9 @@ class SuperAgent(DefaultParty):
         return value > op_threshold
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
+    def is_last_turn(self):
+        return self._progress.get(time() * 1000) > 0.997
+
     def is_near_negotiation_end(self):
         return self._progress.get(time() * 1000) > self.t_phase
 
@@ -352,18 +355,11 @@ class SuperAgent(DefaultParty):
                 return i
         return len(self._sorted_bid_list) - 1
 
-    def filter_only_op_good(self, bid_list):
-        bid_good_for_both = []
-        for bid in bid_list:
-            if self.is_op_good(bid):
-                bid_good_for_both.append(bid)
-        return bid_good_for_both
-
     def on_negotiation_near_end(self):
         slice_idx = self.first_is_good_idx()
         end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
-        idx = random.randint(0, end_slice)
-        if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self._best_offer_bid):
+        idx = random.randint(0, slice_idx)
+        if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
             return self._best_offer_bid
         return self._sorted_bid_list[idx]
 
@@ -372,14 +368,14 @@ class SuperAgent(DefaultParty):
 
         slice_idx = self.first_is_good_idx()
         end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
-        for i in range(end_slice, 0, -1):
+        for i in range(slice_idx, 0, -1):
             tmp_bid = self._sorted_bid_list[i]
-            if tmp_bid == self._optimal_bid or self.is_good(tmp_bid) or self.is_op_good(tmp_bid):
+            if tmp_bid == self._optimal_bid or self.is_op_good(tmp_bid):
                 bid = tmp_bid
                 break
-        if self._progress.get(get_ms_current_time()) > 0.99 and self.is_good(self._best_offer_bid):
+        if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
             bid = self._best_offer_bid
-        if not self.is_good(bid):
+        if bid is None or not self.is_good(bid):
             idx = random.randint(0, slice_idx)
             bid = self._sorted_bid_list[idx]
         return bid
@@ -414,7 +410,7 @@ class SuperAgent(DefaultParty):
                 (self.t_split - 1) / (1 - self.t_phase) * (self._progress.get(get_ms_current_time()) - self.t_phase))
             self.op_sum[index] += self.calc_op_value(self._last_received_bid)
             self.op_counter[index] += 1
-        if self.is_good(self._last_received_bid):
+        if self.is_good(self._last_received_bid) or self.is_last_turn():
             # if the last bid is good - accept it.
             action = Accept(self._me, self._last_received_bid)
         else:
@@ -448,6 +444,7 @@ class SuperAgent(DefaultParty):
             agreement: Bid = agreements.getMap().values().__iter__().__next__()
             self._negotiation_data.add_agreement_util(float(self.calc_utility(agreement)))
             self._negotiation_data.set_opponent_util(self.calc_op_value(agreement))
+            self.getReporter().log(logging.INFO, "Agreement in time: {} percent".format(self._progress.get(get_ms_current_time())))
             self.getReporter().log(logging.INFO, "MY OWN THRESHOLD: {}".format(self._util_threshold))
             self.getReporter().log(logging.INFO, "MY OWN UTIL:{}".format(self.calc_utility(agreement)))
             self.getReporter().log(logging.INFO, "EXP OPPONENT UTIL:{}".format(self.calc_op_value(agreement)))

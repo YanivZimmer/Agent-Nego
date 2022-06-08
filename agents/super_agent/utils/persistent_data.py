@@ -1,7 +1,7 @@
 from abc import ABC
 from collections import defaultdict
 from typing import List
-from agents.super_agent.utils.negotiation_data import NegotiationData
+from .negotiation_data import NegotiationData
 import math
 
 
