@@ -1,0 +1,47 @@
+{
+	"LinearAdditiveUtilitySpace": {
+		"issueUtilities": {
+			"issue2": {
+				"NumberValueSetUtilities": {
+					"lowValue": 12,
+					"lowUtility": 0.3,
+					"highValue": 18,
+					"highUtility": 0.9
+				}
+			},
+			"issue1": {
+				"DiscreteValueSetUtilities": {
+					"valueUtilities": {
+						"issue1value1": 0.2,
+						"issue1value2": 0.8
+					}
+				}
+			}
+		},
+		"issueWeights": {
+			"issue2": 0.4,
+			"issue1": 0.6
+		},
+		"domain": {
+			"name": "test",
+			"issuesValues": {
+				"issue2": {
+					"range": { "low":12,"high":18,"step":1 }
+				},
+				"issue1": {
+					"values": [
+						"issue1value1",
+						"issue1value2"
+					]
+				}
+			}
+		},
+		"name": "testprofile",
+		"reservationBid": {
+			"issuevalues": {
+				"issue1": "issue1value1",
+				"issue2": 12
+			}
+		}
+	}
+}

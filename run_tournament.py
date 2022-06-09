@@ -39,6 +39,10 @@ tournament_settings = {
             "class": "agents.template_agent.template_agent.TemplateAgent",
             "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
         },
+{
+            "class": "agents.super_agent.super_agent.SuperAgent",
+            "parameters": {"storage_dir": "agent_storage/SuperAgent"},
+        }
     ],
     "profile_sets": [
         ["domains/domain00/profileA.json", "domains/domain00/profileB.json"],
