@@ -115,6 +115,43 @@ class SuperAgent(DefaultParty):
         else:
             self._persistent_data: PersistentData = PersistentData()
 
+    def first_better_then(self, utility):
+        idx = None
+        try:
+            idx = next(len(self._sorted_bid_list) - 1 - x for x, val in enumerate(self._sorted_bid_list[-1::-1]) if
+                               self.calc_utility(val) > utility)
+        except StopIteration:
+            pass
+        finally:
+            return idx
+
+    def last_bids(self, good_bid: int):
+        # this session's max utility got
+        if self._progress.get(get_ms_current_time()) <= 0.97 and self.is_good(self._best_offer_bid):
+            return self._best_offer_bid
+        # all session's max utility got
+        avg_max_util = self._persistent_data.get_avg_max_utility(self._opponent_name)
+        if not avg_max_util:
+            return self._best_offer_bid
+        if self._progress.get(get_ms_current_time()) <= 0.99:
+            idx = self.first_better_then(avg_max_util)
+            if idx != None:
+                self.getReporter().log(logging.INFO, "avg_max_util: {0}, bid_utility: {1}".format(avg_max_util,
+                                                                                                  self._utility_space.getUtility(
+                                                                                                      self._sorted_bid_list[
+                                                                                                          idx])))
+                if self.is_good(self._sorted_bid_list[idx]):
+                    return self._sorted_bid_list[idx]
+
+        # last try we give him the best possible suggestion we have
+        bid = max(self._sorted_bid_list[0:good_bid], key=self.calc_op_value)
+        if isinstance(bid, Bid):
+            self.getReporter().log(logging.INFO, "chosen bid utility: {}".format(self._utility_space.getUtility(bid)))
+            return bid
+        else:
+            self.getReporter().log(logging.INFO, "wrong type: {}".format(type(bid)))
+            return self._sorted_bid_list[good_bid]
+
     @classmethod
     def parse_opponent_name(cls, full_opponent_name):
         agent_index = full_opponent_name.rindex("_")
@@ -359,8 +396,11 @@ class SuperAgent(DefaultParty):
         slice_idx = self.first_is_good_idx()
         end_slice = int(min(slice_idx + 0.005 * self._len_sorted_bid_list - 1, self._len_sorted_bid_list - 1))
         idx = random.randint(0, slice_idx)
-        if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
-            return self._best_offer_bid
+
+        if self._progress.get(get_ms_current_time()) >= 0.95:
+            return self.last_bids(idx)
+        # if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
+        #     return self._best_offer_bid
         return self._sorted_bid_list[idx]
 
     def on_negotiation_continues(self):
