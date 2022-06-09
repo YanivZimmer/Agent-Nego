@@ -144,13 +144,13 @@ class SuperAgent(DefaultParty):
                     return self._sorted_bid_list[idx]
 
         # last try we give him the best possible suggestion we have
-        bid = max(self._sorted_bid_list[0:good_bid], key=self.calc_op_value)
-        if isinstance(bid, Bid):
-            self.getReporter().log(logging.INFO, "chosen bid utility: {}".format(self._utility_space.getUtility(bid)))
-            return bid
+        if good_bid == 0:
+            bid = self._optimal_bid
         else:
-            self.getReporter().log(logging.INFO, "wrong type: {}".format(type(bid)))
-            return self._sorted_bid_list[good_bid]
+            bid = max(self._sorted_bid_list[0:good_bid], key=self.calc_op_value)
+
+        self.getReporter().log(logging.INFO, "chosen bid utility: {}".format(self._utility_space.getUtility(bid)))
+        return bid
 
     @classmethod
     def parse_opponent_name(cls, full_opponent_name):
@@ -398,7 +398,10 @@ class SuperAgent(DefaultParty):
         idx = random.randint(0, slice_idx)
 
         if self._progress.get(get_ms_current_time()) >= 0.95:
-            return self.last_bids(idx)
+            bid = self.last_bids(idx)
+            if self.calc_utility(bid) <= 0.5:
+                bid = self._optimal_bid
+            return bid
         # if self._progress.get(get_ms_current_time()) > 0.992 and self.is_good(self._best_offer_bid):
         #     return self._best_offer_bid
         return self._sorted_bid_list[idx]
