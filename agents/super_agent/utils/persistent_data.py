@@ -1,14 +1,14 @@
 from abc import ABC
 from collections import defaultdict
 from typing import List
-from agents.super_agent.utils.negotiation_data import NegotiationData
+from .negotiation_data import NegotiationData
 import math
 
 
 class PersistentData(ABC):
     def __init__(self):
         self._t_split: int = 40
-        self._t_phase: float = 0.5
+        self._t_phase: float = 0.2
         self._new_weight: float = 0.3
         self._smooth_width: int = 3
         self._opponent_decrease: float = 0.65
