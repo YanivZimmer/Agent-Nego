@@ -352,7 +352,7 @@ class SuperAgent(DefaultParty):
         # index = (int)((t_split - 1) / (1 - t_phase) * (progress.get(System.currentTimeMillis()) - t_phase));
 
     def is_last_turn(self):
-        return self._progress.get(time() * 1000) > 0.9997
+        return self._progress.get(time() * 1000) > 0.997
 
     def is_near_negotiation_end(self):
         return self._progress.get(time() * 1000) > self.t_phase
